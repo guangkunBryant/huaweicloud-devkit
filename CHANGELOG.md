@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2-next.2](https://github.com/huaweicloud/huaweicloud-devkit/compare/v1.0.2-next.1...v1.0.2-next.2) (2026-08-18)
+
+
+### Bug Fixes
+
+* **release:** actually add checkout and setup-node to prerelease publish job ([67e0199](https://github.com/huaweicloud/huaweicloud-devkit/commit/67e019981170d500839250387d26122992eed8e0))
+
 ## [1.0.2-next.1](https://github.com/huaweicloud/huaweicloud-devkit/compare/v1.0.2-next.0...v1.0.2-next.1) (2026-08-18)
 
 
