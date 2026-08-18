@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.2-next.4](https://github.com/huaweicloud/huaweicloud-devkit/compare/v1.0.2-next.3...v1.0.2-next.4) (2026-08-18)
+
+
+### Bug Fixes
+
+* **release:** pass RELEASE_PLEASE_TOKEN to release-please so its PR pushes trigger CI ([a13d6cd](https://github.com/huaweicloud/huaweicloud-devkit/commit/a13d6cdd234fb5972754e24832a04130dfd1edf4))
+* **release:** pass RELEASE_PLEASE_TOKEN to release-please so its PR pushes trigger CI ([89bc1d8](https://github.com/huaweicloud/huaweicloud-devkit/commit/89bc1d883ea5224d05f0f4061f914c8fe1a60b81))
+* **release:** rename publish workflow to npm-publish and use quoted step names ([17b3f1e](https://github.com/huaweicloud/huaweicloud-devkit/commit/17b3f1ec215060c4c592f508e65f3ffa2c4d2716))
+* **release:** rename publish workflow to npm-publish and use quoted step names ([4ced4ae](https://github.com/huaweicloud/huaweicloud-devkit/commit/4ced4ae1cfa1840864d11107b00aeba3104ef25a))
+
 ## [1.0.2-next.3](https://github.com/huaweicloud/huaweicloud-devkit/compare/v1.0.2-next.2...v1.0.2-next.3) (2026-08-18)
 
 
