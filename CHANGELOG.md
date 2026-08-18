@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.2-next.3](https://github.com/huaweicloud/huaweicloud-devkit/compare/v1.0.2-next.2...v1.0.2-next.3) (2026-08-18)
+
+
+### Features
+
+* **release:** sync verification/publication separation to next branch ([7f7972d](https://github.com/huaweicloud/huaweicloud-devkit/commit/7f7972df01f5d8a27c19283a6a6bde78b3840179))
+* **release:** sync verification/publication separation to next branch ([5151ed0](https://github.com/huaweicloud/huaweicloud-devkit/commit/5151ed0468df028eaa82734757c22bf038474762))
+* 合入 check-user 三档 403 等修复，发布 1.0.2-next.1 ([e198d60](https://github.com/huaweicloud/huaweicloud-devkit/commit/e198d6075f1cdb5bdec4a67e61666e413c777724))
+
+
+### Miscellaneous
+
+* release-as 1.0.2-next.3 ([eb879ed](https://github.com/huaweicloud/huaweicloud-devkit/commit/eb879ed38ac1bcdfe089fb29f392c5e2b7d99611))
+
 ## [1.0.2-next.2](https://github.com/huaweicloud/huaweicloud-devkit/compare/v1.0.2-next.1...v1.0.2-next.2) (2026-08-18)
 
 
