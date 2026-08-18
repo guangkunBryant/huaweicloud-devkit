@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.2-next.1](https://github.com/huaweicloud/huaweicloud-devkit/compare/v1.0.2-next.0...v1.0.2-next.1) (2026-08-18)
+
+
+### Bug Fixes
+
+* **release:** add checkout steps to prerelease publish job, disable component-in-tag ([12c5272](https://github.com/huaweicloud/huaweicloud-devkit/commit/12c5272c704cec91507a5727c5125c5afe6eadb8))
+* **release:** pin prerelease versioning strategy so the next line stays on 1.0.2 base ([b33adb1](https://github.com/huaweicloud/huaweicloud-devkit/commit/b33adb14ee8c01bd57a1a1c6183134031b31694b))
+
 ## [1.0.2-next.0](https://github.com/huaweicloud/huaweicloud-devkit/compare/huaweicloud-devkit-v1.0.1...huaweicloud-devkit-v1.0.2-next.0) (2026-08-17)
 
 
