@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.2-next.6 (2026-08-18)
+
+- fix: reset dev version to 1.0.1 and sync all manifests
+- fix(release): run tag step before release PR creation to avoid tagging the wrong branch
+- fix(release): configure git user before creating release PR
+- fix(proxy): resolve 6 proxy-related issues from test report
+- feat(release): replace release-please with custom counter-increment workflow
+
 ## 1.0.2-next.5 (2026-08-18)
 
 - fix(release): run tag step before release PR creation to avoid tagging the wrong branch
