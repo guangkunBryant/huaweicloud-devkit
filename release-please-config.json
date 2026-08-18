@@ -3,6 +3,9 @@
   "release-type": "node",
   "include-v-in-tag": true,
   "include-component-in-tag": false,
+  "prerelease": true,
+  "prerelease-type": "next",
+  "versioning": "prerelease",
   "changelog-sections": [
     { "type": "feat", "section": "Features", "hidden": false },
     { "type": "fix", "section": "Bug Fixes", "hidden": false },
