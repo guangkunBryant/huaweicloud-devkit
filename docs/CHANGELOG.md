@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2-next.7 (2026-08-18)
+
+- fix(proxy): WebSocketImpl is not a constructor - use class instead of arrow function
+
 ## 1.0.2-next.6 (2026-08-18)
 
 - fix: reset dev version to 1.0.1 and sync all manifests
