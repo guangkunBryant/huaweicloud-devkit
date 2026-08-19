@@ -8,11 +8,11 @@ source of truth for release decisions.
 
 All versions follow [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 
-| Position | Name | Meaning | Bump when |
-|----------|------|---------|-----------|
-| 1st | **Major** | Breaking change | Upgrading breaks existing users: a tool is removed or renamed, a workflow changes behavior incompatibly, or an API contract changes |
-| 2nd | **Minor** | Backward-compatible feature | New capabilities are added; existing behavior keeps working |
-| 3rd | **Patch** | Backward-compatible fix | Bug fixes, docs, internal refactors; nothing observable changes |
+| Position | Name      | Meaning                     | Bump when                                                                                                                           |
+| -------- | --------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 1st      | **Major** | Breaking change             | Upgrading breaks existing users: a tool is removed or renamed, a workflow changes behavior incompatibly, or an API contract changes |
+| 2nd      | **Minor** | Backward-compatible feature | New capabilities are added; existing behavior keeps working                                                                         |
+| 3rd      | **Patch** | Backward-compatible fix     | Bug fixes, docs, internal refactors; nothing observable changes                                                                     |
 
 **The one-line test:** after the upgrade, does an existing user's flow break?
 Break → major. No break, new capability → minor. No break, only fixes → patch.
@@ -51,27 +51,27 @@ extend the `-dev.*` line. All new prereleases use the `X.Y.Z-next.N` form
 
 ## 2. Mapping Changes to Version Bumps
 
-| Change type | Repo examples | Result |
-|-------------|---------------|--------|
+| Change type                              | Repo examples                                                | Result            |
+| ---------------------------------------- | ------------------------------------------------------------ | ----------------- |
 | Remove/rename a tool or break a workflow | `refactor(sandbox): remove huaweicloud_sandbox_release tool` | **major** → 2.0.0 |
-| New capability | `feat(routing): offer deployment targets with sandbox first` | **minor** → 1.1.0 |
-| Bug fix, docs, internal refactor | `fix(install-hcloud): append+dedupe user PATH` | **patch** → 1.0.2 |
-| No observable change | `docs:`, `chore:`, `test:` | no bump |
+| New capability                           | `feat(routing): offer deployment targets with sandbox first` | **minor** → 1.1.0 |
+| Bug fix, docs, internal refactor         | `fix(install-hcloud): append+dedupe user PATH`               | **patch** → 1.0.2 |
+| No observable change                     | `docs:`, `chore:`, `test:`                                   | no bump           |
 
 Commit message convention (already used in this repo) drives the mapping:
 
-| Commit | Bump |
-|--------|------|
-| `fix: ...` | patch |
-| `feat: ...` | minor |
+| Commit                                    | Bump  |
+| ----------------------------------------- | ----- |
+| `fix: ...`                                | patch |
+| `feat: ...`                               | minor |
 | `feat!: ...` or `BREAKING CHANGE:` footer | major |
 
 ## 3. Release Channels (npm dist-tags)
 
-| Tag | Points to | Audience |
-|-----|-----------|----------|
-| `latest` | latest stable | All users (default install) |
-| `next` | latest prerelease `X.Y.Z-next.N` | Early adopters and public preview |
+| Tag      | Points to                        | Audience                          |
+| -------- | -------------------------------- | --------------------------------- |
+| `latest` | latest stable                    | All users (default install)       |
+| `next`   | latest prerelease `X.Y.Z-next.N` | Early adopters and public preview |
 
 Rules:
 
@@ -104,21 +104,23 @@ Steps:
    npm run validate
    ```
 
-4. Run tests: `npm test`.
-5. Publish to the `next` tag:
+4. Refresh the bundled Huawei Cloud Icons manifest snapshot:
+   `node ./scripts/update-icons-manifest.mjs`.
+5. Run tests: `npm test`.
+6. Publish to the `next` tag:
 
    ```powershell
    npm publish --tag next
    ```
 
-6. Restore `package.json` to the stable version and commit only non-version
+7. Restore `package.json` to the stable version and commit only non-version
    changes (the repo must never drift from what is published):
 
    ```powershell
    npm version <previous-stable> --no-git-tag-version
    ```
 
-7. Announce `1.1.0-next.N` with its change list; collect feedback under that
+8. Announce `1.1.0-next.N` with its change list; collect feedback under that
    version number.
 
 Subsequent iterations use `1.1.0-next.1`, `1.1.0-next.2`, and so on.
@@ -128,12 +130,12 @@ Subsequent iterations use `1.1.0-next.1`, `1.1.0-next.2`, and so on.
 `next` is a **public** channel: anyone can install it. Do not use it as a
 private iteration loop (that caused the `-dev.*` flood).
 
-| Scenario | Use |
-|----------|-----|
-| Single developer, quick local verification | `npm pack` + local install; do not publish |
-| Small team (≤ 5), ad-hoc distribution | `npm pack` → share the `.tgz`, install from file |
-| Larger team or standardized rollout | `next` prerelease |
-| Public preview for external users | `next` prerelease |
+| Scenario                                   | Use                                              |
+| ------------------------------------------ | ------------------------------------------------ |
+| Single developer, quick local verification | `npm pack` + local install; do not publish       |
+| Small team (≤ 5), ad-hoc distribution      | `npm pack` → share the `.tgz`, install from file |
+| Larger team or standardized rollout        | `next` prerelease                                |
+| Public preview for external users          | `next` prerelease                                |
 
 Prerelease cadence: at most 1–2 `next` publishes per week, only after
 `npm test` and `npm run validate` pass.
