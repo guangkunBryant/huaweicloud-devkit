@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.0-next.20 (2026-09-01)
+
+- fix(sandbox): auto-generate QR code in deploy_check for cross-platform projects
+- feat(cli): replace string matching with token-based plan-run approval (#421)
+
 ## 1.1.0-next.19 (2026-09-01)
 
 - feat(cli): save large hcloud output to file and return path (#416)
