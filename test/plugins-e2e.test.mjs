@@ -9,7 +9,7 @@ import test from 'node:test';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const setupCli = join(root, 'bin', 'setup.cjs');
 
-function makeEnv(home, cwd) {
+function makeEnv(home, _cwd) {
   return {
     ...process.env,
     USERPROFILE: home,
@@ -52,10 +52,18 @@ const targets = [
   {
     name: 'codex-desktop',
     banner: /\[Codex Desktop\]/,
-    pluginsDir: (h) => join(h, '.agents', 'huaweicloud-plugins'),
-    skillsDir: (h) => join(h, '.agents', 'skills'),
-    configPath: (h) => join(h, '.codex', 'config.toml'),
-    hasServer: (p) => existsSync(p) && readFileSync(p, 'utf8').includes('[mcp_servers.huaweicloud-devkit]'),
+    pluginsDir: (h) => join(h, 'plugins', 'huaweicloud-devkit'),
+    skillsDir: (h) => join(h, 'plugins', 'huaweicloud-devkit', 'skills'),
+    configPath: (h) => join(h, '.agents', 'plugins', 'marketplace.json'),
+    hasServer: (p) => {
+      if (!existsSync(p)) return false;
+      try {
+        const mp = JSON.parse(readFileSync(p, 'utf8'));
+        return mp.plugins && mp.plugins.some((e) => e.name === 'huaweicloud-devkit');
+      } catch {
+        return false;
+      }
+    },
   },
   {
     name: 'workbuddy',

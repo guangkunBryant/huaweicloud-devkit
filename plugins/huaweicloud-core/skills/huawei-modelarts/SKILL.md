@@ -63,3 +63,11 @@ Discover operation parameters with `--help` before executing any write operation
 
 - **OBS storage**: See `huawei-obs` for bucket and training data management
 - **VPC/Subnet**: See `huawei-vpc` for notebook network configuration
+
+## External Skills
+
+For advanced workflows (notebook lifecycle, training job diagnosis,
+hyperparameter tuning), search the marketplace:
+`huaweicloud_search_marketplace` query="ModelArts notebook/training/diagnosis"
+→ install via `npx skills add huaweicloud/huaweicloud-skills --skill <name> -y -g`
+→ load and execute.

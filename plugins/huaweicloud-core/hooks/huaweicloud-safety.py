@@ -53,16 +53,23 @@ READ_OPERATION_RE = re.compile(r"\b(List|Show|Get|Describe|NovaList|NovaShow)\w*
 READ_OPERATION_RE = re.compile(r"\b(List|Show|Get|Describe|NovaList|NovaShow)\w*", re.I)
 
 
-def deny(reason):
-    json.dump(
-        {
-            "hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "permissionDecision": "deny",
-                "permissionDecisionReason": DENY_PREFIX + reason,
+def deny(reason, hermes=False):
+    sys.stdout.write(
+        json.dumps(
+            {
+                "action": "block",
+                "message": DENY_PREFIX + reason,
             }
-        },
-        sys.stdout,
+            if hermes
+            else {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": DENY_PREFIX + reason,
+                }
+            }
+        )
+        + "\n"
     )
     sys.exit(0)
 
@@ -131,6 +138,31 @@ def first_denied_command_rule(text):
     return None
 
 
+def evaluate(tool_name, tool_input):
+    """Run the full safety check and return a raw block reason, or None to allow.
+
+    Shared by the CLI shell (``main``) and the Hermes Python-plugin hook, which
+    reuses this module via ``importlib`` so a single implementation enforces the
+    policy everywhere. The returned reason does NOT include ``DENY_PREFIX`` —
+    callers decide the exact output shape.
+    """
+    text = command_text(tool_input)
+
+    if CONFIG_FILE_RE and CONFIG_FILE_RE.search(text):
+        return "reading Huawei Cloud credential/profile files can expose AK/SK or tokens. Use redacted toolkit tools."
+    if ENV_DUMP_RE.search(text):
+        return "dumping cloud credential environment variables is not allowed."
+    if SECRET_READ_RE and SECRET_READ_RE.search(text):
+        return "direct secret value retrieval would put plaintext secrets into the agent context."
+    denied_rule = first_denied_command_rule(text)
+    if denied_rule:
+        return f"{denied_rule.get('message')} Remediation: {denied_rule.get('remediation')}"
+    if tool_name in ("Bash", "terminal") and HCLOUD_RE.search(text) and WRITE_OPERATION_RE.search(text) and not READ_OPERATION_RE.search(text):
+        return "unapproved Huawei Cloud write operations must be planned first and explicitly approved by the user."
+
+    return None
+
+
 def main():
     try:
         data = json.load(sys.stdin)
@@ -138,19 +170,12 @@ def main():
         allow()
 
     tool_name = data.get("tool_name", "")
-    text = command_text(data.get("tool_input", {}))
+    tool_input = data.get("tool_input", {})
+    hermes = "hook_event_name" in data
 
-    if CONFIG_FILE_RE and CONFIG_FILE_RE.search(text):
-        deny("reading Huawei Cloud credential/profile files can expose AK/SK or tokens. Use redacted toolkit tools.")
-    if ENV_DUMP_RE.search(text):
-        deny("dumping cloud credential environment variables is not allowed.")
-    if SECRET_READ_RE and SECRET_READ_RE.search(text):
-        deny("direct secret value retrieval would put plaintext secrets into the agent context.")
-    denied_rule = first_denied_command_rule(text)
-    if denied_rule:
-        deny(f"{denied_rule.get('message')} Remediation: {denied_rule.get('remediation')}")
-    if tool_name == "Bash" and HCLOUD_RE.search(text) and WRITE_OPERATION_RE.search(text) and not READ_OPERATION_RE.search(text):
-        deny("unapproved Huawei Cloud write operations must be planned first and explicitly approved by the user.")
+    reason = evaluate(tool_name, tool_input)
+    if reason:
+        deny(reason, hermes)
 
     allow()
 

@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, readlinkSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -109,17 +109,34 @@ export function resolveCredentials(options = {}) {
   return { ak, sk, securityToken, region };
 }
 
+let _parentCwd = undefined;
+
+export function getParentCwd() {
+  if (_parentCwd !== undefined) return _parentCwd;
+  try {
+    _parentCwd = readlinkSync(`/proc/${process.ppid}/cwd`);
+    return _parentCwd;
+  } catch {
+    _parentCwd = null;
+    return null;
+  }
+}
+
 function isCodeArtsContext() {
-  return existsSync(join(process.cwd(), '.codeartsdoer')) || existsSync(join(homedir(), '.codeartsdoer'));
+  return (
+    existsSync(join(process.cwd(), '.codeartsdoer')) ||
+    existsSync(join(homedir(), '.codeartsdoer')) ||
+    existsSync(join(homedir(), '.codeartswork'))
+  );
 }
 
 function readCodeArtsCredentials() {
-  const searchPaths = [
-    join(process.cwd(), '.codeartsdoer', 'mcp', 'mcp_settings.json'),
-    join(homedir(), '.codeartsdoer', 'mcp', 'mcp_settings.json'),
-  ];
+  const parentCwd = getParentCwd();
+  const searchDirs = [process.env.CODEARTS_PROJECT_DIR, parentCwd, process.cwd(), homedir()];
 
-  for (const path of searchPaths) {
+  for (const dir of searchDirs) {
+    if (!dir) continue;
+    const path = join(dir, '.codeartsdoer', 'mcp', 'mcp_settings.json');
     try {
       if (!existsSync(path)) continue;
       const config = JSON.parse(readFileSync(path, 'utf8'));
@@ -135,6 +152,31 @@ function readCodeArtsCredentials() {
           securityToken: server.env.HW_SECURITY_TOKEN || '',
           region: server.env.HW_REGION || server.env.HUAWEICLOUD_REGION || '',
         };
+      }
+    } catch {
+      // mcp_settings.json missing or invalid — skip
+    }
+  }
+
+  // CodeArts Work — user-level only
+  {
+    const path = join(homedir(), '.codeartswork', 'mcp', 'mcp_settings.json');
+    try {
+      if (existsSync(path)) {
+        const config = JSON.parse(readFileSync(path, 'utf8'));
+        const server = config?.mcpServers?.['huaweicloud-devkit'];
+        if (server?.env) {
+          const ak = server.env.HW_ACCESS_KEY;
+          const sk = server.env.HW_SECRET_KEY;
+          if (ak && sk) {
+            return {
+              ak,
+              sk,
+              securityToken: server.env.HW_SECURITY_TOKEN || '',
+              region: server.env.HW_REGION || server.env.HUAWEICLOUD_REGION || '',
+            };
+          }
+        }
       }
     } catch {
       // mcp_settings.json missing or invalid — skip

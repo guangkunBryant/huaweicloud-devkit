@@ -3,7 +3,13 @@ import { stdin, stdout } from 'node:process';
 import { rmSync, existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import { TOOL_DEFINITIONS, callTool } from './tools.mjs';
+
+const projectDirIdx = process.argv.indexOf('--codearts-project-dir');
+if (projectDirIdx > -1 && process.argv[projectDirIdx + 1]) {
+  process.env.CODEARTS_PROJECT_DIR = process.argv[projectDirIdx + 1];
+}
 
 try {
   const { readProxyConfig } = await import('./proxy/proxy-config.mjs');
@@ -42,6 +48,29 @@ for (const base of [pluginRoot, packageRoot]) {
 
 let buffer = Buffer.alloc(0);
 let useContentLengthFraming = true;
+
+// Keep the event loop alive after stdin is closed (Windows Hermes workaround).
+// Node.js exits when no active handles remain; the stdin 'data' listener is
+// the only handle. On Windows, Hermes may close the stdin pipe after the
+// initial handshake, causing the process to exit silently (exit 0).
+//
+// When stdin closes, start a keepalive timer. When stdout also closes (normal
+// shutdown signal from OfficeAce or other agents), clear the timer and exit.
+let keepAlive = null;
+function onStdinClose() {
+  if (keepAlive) return;
+  keepAlive = setInterval(() => {}, 60000);
+}
+function onStdoutClose() {
+  if (keepAlive) {
+    clearInterval(keepAlive);
+    keepAlive = null;
+  }
+  process.exitCode = 0;
+}
+stdin.on('close', onStdinClose);
+stdin.on('end', onStdinClose);
+stdout.on('close', onStdoutClose);
 
 stdin.on('data', (chunk) => {
   buffer = Buffer.concat([buffer, chunk]);

@@ -50,6 +50,25 @@ test('OpenCode integration exposes skills, commands, and MCP config', () => {
   assert.ok(existsSync(join(root, 'integrations', 'opencode', 'skills', 'huaweicloud-core', 'SKILL.md')));
 });
 
+test('Hermes MCP Catalog manifest is present and valid', () => {
+  const manifestPath = join(root, 'integrations', 'hermes', 'manifest.yaml');
+  assert.ok(existsSync(manifestPath), 'Missing integrations/hermes/manifest.yaml');
+
+  const yaml = readFileSync(manifestPath, 'utf8');
+
+  assert.match(yaml, /manifest_version:\s*1/);
+  assert.match(yaml, /name:\s*huaweicloud-devkit/);
+  assert.match(yaml, /transport:/);
+  assert.match(yaml, /type:\s*stdio/);
+  assert.match(yaml, /command:\s*['"]node['"]/);
+  assert.match(yaml, /mcp-server\.mjs/);
+  assert.match(yaml, /install:/);
+  assert.match(yaml, /type:\s*git/);
+  assert.match(yaml, /huaweicloud\/huaweicloud-devkit/);
+  assert.match(yaml, /--target hermes --skip-mcp-server/);
+  assert.match(yaml, /post_install:/);
+});
+
 test('plugin skills are compact meta-skills instead of service encyclopedia entries', () => {
   const skillsDir = join(pluginRoot, 'skills');
   const skillNames = readdirSync(skillsDir).filter((name) => existsSync(join(skillsDir, name, 'SKILL.md')));
@@ -103,7 +122,6 @@ test('skill SKILL.md files meet minimum content quality bar', () => {
   const skillNames = readdirSync(skillsDir).filter((name) => existsSync(join(skillsDir, name, 'SKILL.md')));
 
   const exceptions = new Set([
-    'huawei-cloud-find-skills',
     'huaweicloud-api-and-sdk',
     'huaweicloud-safety',
     'huaweicloud-troubleshooting',
@@ -155,6 +173,17 @@ test('web/static-site deployment intent offers target options with sandbox first
   const discovery = readFileSync(join(pluginRoot, 'skills', 'huaweicloud-capability-discovery', 'SKILL.md'), 'utf8');
   assert.match(discovery, /Deployment Target Options/);
   assert.match(discovery, /do NOT default to OBS/);
+});
+
+test('devbridge uses the valid `list` command, not the non-existent `ls`', () => {
+  const sandbox = readFileSync(join(pluginRoot, 'skills', 'huawei-sandbox', 'SKILL.md'), 'utf8');
+  const sessionManager = readFileSync(join(pluginRoot, 'src', 'sandbox', 'session-manager.mjs'), 'utf8');
+
+  assert.doesNotMatch(sandbox, /devbridge ls\b/);
+  assert.match(sandbox, /devbridge list -j/);
+
+  assert.doesNotMatch(sessionManager, /devbridge ls\b/);
+  assert.match(sessionManager, /devbridge list -j/);
 });
 
 test('all plugin manifests are valid JSON', () => {
@@ -265,15 +294,18 @@ test('setup-cli.mjs supports the codearts target end to end', () => {
   // .installed marker goes to the codearts plugins dir
   assert.match(
     setup,
-    /const markerDir =[\s\S]*?target === 'dsh'[\s\S]*?dshPluginsDir\(\)[\s\S]*?target === 'codearts'[\s\S]*?codeartsPluginsDir\(\)[\s\S]*?target === 'workbuddy'[\s\S]*?workbuddyPluginsDir\(\)[\s\S]*?target === 'codex-desktop'[\s\S]*?codexDesktopPluginsDir\(\)[\s\S]*?;/,
+    /const markerDir =[\s\S]*?target === 'dsh'[\s\S]*?dshPluginsDir\(\)[\s\S]*?target === 'codearts'[\s\S]*?codeartsPluginsDir\(\)[\s\S]*?target === 'codearts-work'[\s\S]*?codeartsWorkPluginsDir\(\)[\s\S]*?target === 'workbuddy'[\s\S]*?workbuddyPluginsDir\(\)[\s\S]*?target === 'codex-desktop'[\s\S]*?codexDesktopPluginsDir\(\)[\s\S]*?;/,
   );
   // doctor checks the codearts skills dir alongside opencode
   assert.match(
     setup,
-    /const skillsOptions = \[[\s\S]*?opencodeSkillsDir\(\)[\s\S]*?codexDesktopSkillsDir\(\)[\s\S]*?codeartsSkillsDir\(\)[\s\S]*?workbuddySkillsDir\(\)[\s\S]*?dshSkillsDir\(\)[\s\S]*?\];/,
+    /const skillsOptions = \[[\s\S]*?opencodeSkillsDir\(\)[\s\S]*?codexDesktopSkillsDir\(\)[\s\S]*?codeartsSkillsDir\(\)[\s\S]*?codeartsWorkSkillsDir\(\)[\s\S]*?workbuddySkillsDir\(\)[\s\S]*?dshSkillsDir\(\)[\s\S]*?\];/,
   );
   // help text documents the target
-  assert.match(setup, /--target <opencode\|codex\|codearts\|workbuddy\|dsh\|officeace\|hermes\|openclaw\|all>/);
+  assert.match(
+    setup,
+    /--target <opencode\|codex\|codearts\|codearts-work\|workbuddy\|dsh\|officeace\|hermes\|openclaw\|atomcode\|all>/,
+  );
   assert.match(setup, /install --target codearts/);
 });
 
@@ -356,7 +388,10 @@ test('setup-cli.mjs supports the dsh target end to end', () => {
   assert.match(setup, /dshPatchConfigured\(\)/);
   assert.match(setup, /dshSkillsDir\(\)/);
   // help text documents the target
-  assert.match(setup, /--target <opencode\|codex\|codearts\|workbuddy\|dsh\|officeace\|hermes\|openclaw\|all>/);
+  assert.match(
+    setup,
+    /--target <opencode\|codex\|codearts\|codearts-work\|workbuddy\|dsh\|officeace\|hermes\|openclaw\|atomcode\|all>/,
+  );
   assert.match(setup, /install --target dsh/);
 });
 
@@ -368,7 +403,10 @@ test('tools.mjs resolves skills from the dsh directory', () => {
   // stale or empty dirs must not short-circuit the fallback chain
   assert.match(tools, /resolveSkillsRoot[\s\S]*?findSkillsRoot\(\[/);
   assert.match(tools, /\|\|\s*SKILLS_ROOT_DEV/);
-  assert.match(tools, /opencode, codex, codex-desktop, codearts, workbuddy, dsh, officeace, hermes, openclaw, or all/);
+  assert.match(
+    tools,
+    /opencode, codex, codex-desktop, codearts, codearts-work, workbuddy, dsh, officeace, hermes, openclaw, atomcode, or all/,
+  );
 });
 
 test('tools.mjs resolves skills from the officeace directory', () => {
@@ -418,15 +456,40 @@ test('setup-cli.mjs supports the hermes target end to end', () => {
   assert.match(setup, /function hermesConfigFile\(\)/);
   assert.match(setup, /function ensureHermesMcpConfig\(\)/);
   assert.match(setup, /function removeHermesMcpConfigBlock\(\)/);
+  assert.match(setup, /function ensureHermesHooksConfig\(\)/);
+  assert.match(setup, /function removeHermesHooksConfigBlock\(\)/);
+  assert.match(setup, /function ensureHermesHookAllowlist\(\)/);
+  assert.match(setup, /function hermesHookCommand\(\)/);
+  assert.match(setup, /function hermesPythonPluginsDir\(\)/);
+  assert.match(setup, /function hermesSafetyPluginDir\(\)/);
+  assert.match(setup, /function ensureHermesHookPlugin\(\)/);
+  assert.match(setup, /function removeHermesHookPlugin\(\)/);
   assert.match(setup, /copyDir\(skillsSrc, hermesSkillsDir\(\)\)/);
+  assert.match(setup, /copyDir\(hooksDir, join\(pluginDest, 'hooks'\)\)/);
   assert.match(setup, /ensureHermesMcpConfig\(\)/);
+  assert.match(setup, /ensureHermesHooksConfig\(\)/);
+  assert.match(setup, /ensureHermesHookAllowlist\(\)/);
+  assert.match(setup, /ensureHermesHookPlugin\(\)/);
   assert.match(setup, /mcp_servers:/);
   assert.match(setup, /huaweicloud-devkit:/);
   assert.match(setup, /HUAWEICLOUD_AGENT_TOOLKIT_MODE: "local"/);
+  assert.match(setup, /hooks:/);
+  assert.match(setup, /pre_tool_call:/);
+  assert.match(setup, /matcher: "terminal"/);
+  assert.match(setup, /fail_closed: true/);
+  assert.match(setup, /shell-hooks-allowlist\.json/);
+  assert.match(setup, /name: huaweicloud-safety/);
+  assert.match(setup, /register_hook\("pre_tool_call"/);
+  assert.match(setup, /evaluate\(tool_name, args\)/);
+  assert.match(setup, /huaweicloud-safety\.py/);
   const branches = setup.match(/target === 'hermes' \|\| target === 'all'/g);
   assert.ok(branches && branches.length >= 3, `hermes dispatch branches: ${branches?.length}`);
   assert.match(setup, /install --target hermes/);
   assert.match(setup, /HERMES_HOME/);
+  assert.match(setup, /LOCALAPPDATA/);
+  assert.match(setup, /--skip-mcp-server/);
+  assert.match(setup, /function ensureHermesMcpSdk\(\)/);
+  assert.match(setup, /function hermesMcpSdkOk\(\)/);
 });
 
 test('tools.mjs resolves skills from the hermes directory', () => {
@@ -436,6 +499,21 @@ test('tools.mjs resolves skills from the hermes directory', () => {
   assert.match(tools, /LOCALAPPDATA/);
   assert.match(tools, /return join\(home, '\.hermes', 'skills'\)/);
   assert.match(tools, /hermesSkillsDir\(\)/);
+});
+
+test('tools.mjs resolves skills from the atomcode directory', () => {
+  const tools = readFileSync(join(pluginRoot, 'src', 'tools.mjs'), 'utf8');
+  assert.match(tools, /function atomcodeSkillsDir\(\)/);
+  assert.match(tools, /process\.env\.ATOMCODE_HOME/);
+  assert.match(tools, /return join\(home, '\.atomcode', 'skills'\)/);
+  assert.match(tools, /atomcodeSkillsDir\(\)/);
+});
+
+test('agent-registration reports openclaw registration status', () => {
+  const registration = readFileSync(join(pluginRoot, 'src', 'auth', 'agent-registration.mjs'), 'utf8');
+  assert.match(registration, /function openclawRegistered\(\)/);
+  assert.match(registration, /agent === 'openclaw'/);
+  assert.match(registration, /'\.agents', 'huaweicloud-plugins', '\.mcp\.json'/);
 });
 
 test('official Huawei Cloud Icons library is integrated', () => {

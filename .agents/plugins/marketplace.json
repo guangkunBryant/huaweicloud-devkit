@@ -5,16 +5,16 @@
   },
   "plugins": [
     {
-      "name": "huaweicloud-devkit",
-      "source": {
-        "source": "local",
-        "path": "./plugins/huaweicloud-core"
-      },
       "policy": {
-        "installation": "AVAILABLE",
+        "installation": "INSTALLED_BY_DEFAULT",
         "authentication": "ON_USE"
       },
-      "category": "Cloud"
+      "category": "Cloud",
+      "name": "huaweicloud-devkit",
+      "source": {
+        "path": "./plugins/huaweicloud-core",
+        "source": "local"
+      }
     }
   ]
 }

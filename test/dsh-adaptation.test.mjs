@@ -83,6 +83,23 @@ test('dsh install copies skills, MCP server, safety policy, and patch row', () =
   }
 });
 
+test('dsh install writes .installed marker only after runtime deps', () => {
+  const home = mkdtempSync(join(tmpdir(), 'dsh-home-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'dsh-proj-'));
+  try {
+    const dshHome = join(home, '.dsh');
+    const res = runCli(home, cwd, ['install', '--target', 'dsh'], dshHome);
+    assert.equal(res.status, 0, res.stderr);
+    const pluginDir = join(dshHome, 'huaweicloud-plugins');
+    assert.ok(existsSync(join(pluginDir, '.installed')), '.installed marker exists');
+    const hasUndici = existsSync(join(pluginDir, 'node_modules', 'undici'));
+    assert.ok(hasUndici, 'undici installed before .installed marker written');
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test('dsh install is idempotent and preserves unrelated patch entries', () => {
   const home = mkdtempSync(join(tmpdir(), 'dsh-home-'));
   const cwd = mkdtempSync(join(tmpdir(), 'dsh-proj-'));
@@ -209,7 +226,10 @@ test('cli help documents the dsh target', () => {
   try {
     const res = runCli(home, cwd, ['help']);
     assert.equal(res.status, 0, res.stderr);
-    assert.match(res.stdout, /--target <opencode\|codex\|codearts\|workbuddy\|dsh\|officeace\|hermes\|openclaw\|all>/);
+    assert.match(
+      res.stdout,
+      /--target <opencode\|codex\|codearts\|codearts-work\|workbuddy\|dsh\|officeace\|hermes\|openclaw\|atomcode\|all>/,
+    );
     assert.match(res.stdout, /install --target dsh/);
   } finally {
     rmSync(home, { recursive: true, force: true });
