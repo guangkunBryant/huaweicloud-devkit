@@ -19,7 +19,10 @@ Use this skill to turn vague developer intent into a precise Huawei Cloud capabi
 6. Prefer SDK docs when the deliverable is application code.
 7. Prefer MCP only when an approved Huawei Cloud MCP tool exists for the needed operation.
 8. Treat Terraform as a secondary V1 path for reviewed IaC, not the default.
-9. When no built-in devkit skill matches, browse the community skill marketplace at https://github.com/huaweicloud/huaweicloud-skills. Fetch the index from https://raw.githubusercontent.com/huaweicloud/huaweicloud-skills/master/skills-index/index.json.
+9. When no built-in devkit skill matches:
+   a. Search: use `huaweicloud_search_marketplace` to find a matching skill in the community marketplace
+   b. Install: run `npx skills add huaweicloud/huaweicloud-skills --skill <skill-name> -y -g`
+   c. Execute: load the installed skill and follow its procedure
 10. When the deliverable is a PPT, architecture diagram (draw.io), or frontend page that needs official Huawei Cloud service logos, use the `huaweicloud_get_service_icon` MCP tool to get logo URLs from the official Icons library instead of guessing or hotlinking unofficial images.
 
 ## Scenario Routing

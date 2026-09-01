@@ -1,11 +1,21 @@
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createConnection as netConnect } from 'node:net';
-import { existsSync, readFileSync, statSync, mkdirSync, rmSync, createReadStream, appendFileSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+  statSync,
+  mkdirSync,
+  rmSync,
+  createReadStream,
+  appendFileSync,
+  unlinkSync,
+} from 'node:fs';
 import { createHash, randomBytes } from 'node:crypto';
 import { join, dirname, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+
 import { createConnection, getCredentials } from './hwlink-api.mjs';
 import { getWebSocketImpl } from '../proxy/proxy-agent.mjs';
 
@@ -15,6 +25,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export const WS_EXEC_INDEX_URL = pathToFileURL(join(__dirname, '..', 'ws-exec', 'index.js')).href;
 
 let currentWorkspaceId = process.env.HW_WORKSPACE_ID || null;
+
+function getCurrentWorkspaceId() {
+  return currentWorkspaceId;
+}
 
 function setWorkspaceId(id) {
   currentWorkspaceId = id;
@@ -150,7 +164,9 @@ export async function execWithSession(workspaceId, command, username, timeoutMs)
 
 export const UPLOAD_CHUNK_SIZE = 30000;
 
-export const UPLOAD_BATCH_SIZE = 5;
+export const UPLOAD_BATCH_SIZE = 2;
+
+export const UPLOAD_MAX_RETRIES = 3;
 
 export function splitBase64Chunks(base64, chunkSize = UPLOAD_CHUNK_SIZE) {
   const chunks = [];
@@ -184,11 +200,21 @@ export async function uploadFileWithSession(workspaceId, localPath, remotePath, 
     const batchNum = Math.floor(batchStart / UPLOAD_BATCH_SIZE) + 1;
     const totalBatches = Math.ceil(chunks.length / UPLOAD_BATCH_SIZE);
     const cmd = `printf '%s' '${combinedChunk}' >> "${tmp}"`;
-    const res = await execWithSession(workspaceId, cmd, username, timeoutMs);
-    if (res.exitCode !== 0) {
-      throw new Error(
-        `sandbox upload: failed writing batch ${batchNum}/${totalBatches}: ${res.stdout || res.error || res.exitCode}`,
-      );
+
+    let batchOk = false;
+    let lastError;
+    for (let retry = 0; retry < UPLOAD_MAX_RETRIES; retry++) {
+      const res = await execWithSession(workspaceId, cmd, username, timeoutMs);
+      if (res.exitCode === 0) {
+        batchOk = true;
+        break;
+      }
+      lastError = res.stdout || res.error || res.exitCode;
+      console.error(`  upload retry ${retry + 1}/${UPLOAD_MAX_RETRIES} for batch ${batchNum}/${totalBatches}`);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    if (!batchOk) {
+      throw new Error(`sandbox upload: failed writing batch ${batchNum}/${totalBatches}: ${lastError}`);
     }
     if (batchNum % 10 === 0 || batchNum === totalBatches) {
       console.error(`  upload progress: batch ${batchNum}/${totalBatches}`);
@@ -252,6 +278,17 @@ function uploadLog(message) {
   } catch {}
 }
 
+function rotateUploadLog(maxBytes = 100 * 1024) {
+  try {
+    if (existsSync(UPLOAD_LOG_PATH)) {
+      const stat = statSync(UPLOAD_LOG_PATH);
+      if (stat.size > maxBytes) {
+        unlinkSync(UPLOAD_LOG_PATH);
+      }
+    }
+  } catch {}
+}
+
 function generateUploadToken() {
   return randomBytes(16).toString('hex');
 }
@@ -262,15 +299,34 @@ async function createTarGz(localDir, exclude = []) {
   mkdirSync(archiveDir, { recursive: true });
   const archivePath = join(archiveDir, archiveName);
 
-  const args = [
-    ...exclude.flatMap((p) => ['--exclude', p]),
-    '-czf',
-    archivePath,
-    '-C',
-    dirname(localDir),
-    basename(localDir),
-  ];
-  await execFileAsync('tar', args);
+  const hasGit = existsSync(join(localDir, '.git'));
+  if (hasGit) {
+    await execFileAsync('git', [
+      '-C',
+      localDir,
+      'archive',
+      '--format=tar.gz',
+      `--prefix=${basename(localDir)}/`,
+      `--output=${archivePath}`,
+      'HEAD',
+    ]);
+  } else {
+    const args = [];
+    for (const pattern of exclude) {
+      if (pattern.startsWith('**/')) {
+        const base = pattern.slice(3);
+        for (let depth = 0; depth <= 4; depth++) {
+          const prefix = depth === 0 ? '' : '*/'.repeat(depth);
+          args.push('--exclude', `${prefix}${base}`);
+        }
+      } else {
+        args.push('--exclude', pattern);
+      }
+    }
+    args.push('-czf', archivePath, '-C', dirname(localDir), basename(localDir));
+    await execFileAsync('tar', args);
+  }
+
   return archivePath;
 }
 
@@ -366,7 +422,7 @@ async function uploadViaTunnel(localPort, archivePath, archiveSize, archiveRemot
             }
             try {
               resolve(JSON.parse(body));
-            } catch (e) {
+            } catch (error) {
               reject(new Error(`invalid JSON response: ${body.slice(0, 200)}`));
             }
           });
@@ -387,7 +443,7 @@ async function uploadViaTunnel(localPort, archivePath, archiveSize, archiveRemot
         }
         try {
           resolve(JSON.parse(body));
-        } catch (e) {
+        } catch (error) {
           reject(new Error(`invalid JSON response: ${body.slice(0, 200)}`));
         }
       });
@@ -431,8 +487,8 @@ async function waitForServerReady(localPort) {
         return;
       }
       uploadLog(`waitForServerReady: health check returned non-200 (retry ${i + 1})`);
-    } catch (err) {
-      uploadLog(`waitForServerReady: health check failed: ${err.message} (retry ${i + 1})`);
+    } catch (error) {
+      uploadLog(`waitForServerReady: health check failed: ${error.message} (retry ${i + 1})`);
     }
     await new Promise((r) => setTimeout(r, SERVER_HEALTH_INTERVAL_MS));
   }
@@ -540,6 +596,8 @@ export async function uploadProjectWithSession(
     throw new Error(`sandbox upload project: path is not a directory: ${localDir}`);
   }
 
+  rotateUploadLog();
+
   const projectName = basename(localDir);
   const targetParentDir = remoteDir || '/workspace';
   const archiveRemotePath = `${targetParentDir}/${projectName}.tar.gz`;
@@ -550,15 +608,36 @@ export async function uploadProjectWithSession(
 
   uploadLog(`uploadProject: ${localDir} -> ${archiveRemotePath} (archive=${archiveSize} bytes, md5=${expectedMd5})`);
 
+  const SIZE_50MB = 50 * 1024 * 1024;
+  if (archiveSize > SIZE_50MB) {
+    uploadLog(
+      `uploadProject: archive size ${(archiveSize / (1024 * 1024)).toFixed(1)}MB exceeds 50MB. ` +
+        `Dependencies or platform binaries may have been included. ` +
+        `Ensure exclude list contains "**/node_modules" to match all nesting levels.`,
+    );
+  }
+
   let result;
-  try {
-    result = await uploadViaHttpTunnel(workspaceId, archivePath, archiveRemotePath, username, timeoutMs, options);
-  } catch (tunnelError) {
-    uploadLog(`uploadProject: HTTP tunnel upload failed: ${tunnelError.message}`);
+  let tunnelError;
+  for (let attempt = 0; attempt < UPLOAD_MAX_RETRIES; attempt++) {
+    try {
+      await cleanupFileServer(workspaceId, username).catch(() => {});
+      result = await uploadViaHttpTunnel(workspaceId, archivePath, archiveRemotePath, username, timeoutMs, options);
+      tunnelError = null;
+      break;
+    } catch (error) {
+      tunnelError = error;
+      const errorType = error.code || error.name || 'unknown';
+      uploadLog(`uploadProject: attempt ${attempt + 1}/${UPLOAD_MAX_RETRIES} failed [${errorType}]: ${error.message}`);
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+  }
+  if (tunnelError) {
+    uploadLog(`uploadProject: all ${UPLOAD_MAX_RETRIES} attempts failed: ${tunnelError.message}`);
     uploadLog(`uploadProject: NOT falling back to base64 (removed). Rethrowing with diagnostics.`);
     cleanupLocalArchive(archivePath);
     throw new Error(
-      `sandbox upload failed: HTTP tunnel could not transfer the project archive. ` +
+      `sandbox upload failed after ${UPLOAD_MAX_RETRIES} attempts: HTTP tunnel could not transfer the project archive. ` +
         `Archive size: ${(archiveSize / 1024).toFixed(1)}KB. ` +
         `Root cause: ${tunnelError.message}. ` +
         `Diagnostic log: ${UPLOAD_LOG_PATH}`,
@@ -577,6 +656,22 @@ export async function uploadProjectWithSession(
       username,
       timeoutMs,
     );
+    try {
+      await execWithSession(
+        workspaceId,
+        [
+          `REAL_PATH=$(readlink -f "${targetParentDir}/${projectName}" 2>/dev/null || echo "${targetParentDir}/${projectName}")`,
+          `if [ ! -d "$REAL_PATH" ] && [ -d "${targetParentDir}" ]; then`,
+          `  REAL_PATH="${targetParentDir}/${projectName}"`,
+          `fi`,
+          `chmod -R o+rX "$REAL_PATH" 2>/dev/null || true`,
+          `find "$REAL_PATH" -type d -exec chmod o+x {} \\; 2>/dev/null || true`,
+          `find "$REAL_PATH" -type f -path "*/node_modules/.bin/*" -exec chmod +x {} \\; 2>/dev/null || true`,
+        ].join('\n'),
+        username,
+        15000,
+      );
+    } catch {}
   }
 
   try {
@@ -592,6 +687,331 @@ export async function uploadProjectWithSession(
     md5: result.md5 || expectedMd5,
     md5Verified: result.md5 ? result.md5 === expectedMd5 : true,
     extracted: options.extract !== false,
+  };
+}
+
+export async function deployNginx(
+  workspaceId,
+  { nginxType, port, project, outputDir, nodePort, publicPort, configName },
+  username = 'root',
+  timeoutMs = 60000,
+) {
+  if (!workspaceId) {
+    throw new Error('sandbox deploy nginx: workspace_id is required.');
+  }
+  if (!nginxType || !port || !project || !outputDir) {
+    throw new Error('sandbox deploy nginx: nginxType, port, project, and outputDir are required.');
+  }
+
+  const nginxCheck = await execOneShot(
+    workspaceId,
+    'command -v nginx >/dev/null 2>&1 && echo "INSTALLED" || echo "MISSING"',
+    username,
+    10000,
+  );
+  if (!String(nginxCheck.stdout || '').includes('INSTALLED')) {
+    throw new Error(
+      'sandbox deploy nginx: nginx is not installed. Install it first:\n' +
+        '  Detect OS: source /etc/os-release && echo $ID\n' +
+        '  apt: sudo apt-get update -qq && sudo apt-get install -y -qq nginx\n' +
+        '  yum: sudo yum install -y nginx\n' +
+        '  dnf: sudo dnf install -y nginx\n' +
+        'Alternatively, skip nginx and use Python HTTP server (see nginx-templates.md).',
+    );
+  }
+
+  const listenPort = publicPort || port;
+  const basePort = nginxType === 'proxy' ? listenPort : port;
+
+  let targetPort = basePort;
+  let portWarning;
+  const maxPortAttempts = 10;
+  for (let offset = 0; offset < maxPortAttempts; offset += 1) {
+    targetPort = basePort + offset;
+    try {
+      const portCheck = await execOneShot(
+        workspaceId,
+        `ss -tlnp 2>/dev/null | grep -q ":${targetPort} " && echo "IN_USE" || echo "FREE"`,
+        username,
+        10000,
+      );
+      if (!String(portCheck.stdout || '').includes('IN_USE')) break;
+      if (offset === 0) {
+        portWarning = `Port ${basePort} is in use — auto-assigned port ${targetPort}`;
+      }
+    } catch {}
+    if (offset === maxPortAttempts - 1) {
+      throw new Error(
+        `sandbox deploy nginx: all ports ${basePort}-${basePort + maxPortAttempts - 1} are in use. Free a port and try again.`,
+      );
+    }
+  }
+
+  const effectiveNodePort =
+    nginxType === 'proxy' ? (nodePort && nodePort !== listenPort ? nodePort : listenPort + 1) : undefined;
+
+  const projectPath = `/workspace/${project}`;
+  const outputPath = outputDir.startsWith('/') ? outputDir : `${projectPath}/${outputDir}`;
+
+  const resolveScript = `REAL_PROJECT=$(readlink -f "${projectPath}" 2>/dev/null || echo "${projectPath}")
+REAL_OUTPUT="${outputPath}"
+if [ "\${REAL_PROJECT}" != "${projectPath}" ]; then
+  REL_OUTPUT=$(echo "${outputDir}" | sed "s|${projectPath}/||")
+  REAL_OUTPUT="\${REAL_PROJECT}/\${REL_OUTPUT}"
+fi`;
+
+  const templates = {
+    spa: `server {
+    listen ${targetPort};
+    root ${outputPath};
+    index index.html;
+
+    location / {
+        try_files $uri /index.html;
+    }
+
+    location ~* \\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1h;
+        add_header Cache-Control "public, immutable";
+    }
+}`,
+    proxy: `server {
+    listen ${listenPort};
+    server_name _;
+    large_client_header_buffers 4 32k;
+
+    location / {
+        proxy_pass http://127.0.0.1:${effectiveNodePort};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 60s;
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+    }
+}`,
+    static: `server {
+    listen ${targetPort};
+    root ${outputPath};
+    index index.html;
+
+    location / {
+        autoindex off;
+    }
+
+    location ~* \\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1h;
+        add_header Cache-Control "public, immutable";
+    }
+}`,
+  };
+
+  const config = templates[nginxType];
+  if (!config) {
+    throw new Error(`sandbox deploy nginx: unknown nginxType "${nginxType}". Must be one of: spa, proxy, static`);
+  }
+
+  const cmd = [
+    resolveScript,
+    `sudo mkdir -p /etc/nginx/conf.d`,
+    `sudo tee /etc/nginx/conf.d/${configName || project}.conf > /dev/null << 'NGINX_EOF'`,
+    config,
+    `NGINX_EOF`,
+    `# Resolve symlinks for chmod (chmod does not follow symlinks on Linux)`,
+    `chmod -R o+rX "$REAL_PROJECT" 2>/dev/null || true`,
+    `find "$REAL_PROJECT" -type d -exec chmod o+x {} \\; 2>/dev/null || true`,
+    `find "$REAL_PROJECT" -type f -path "*/node_modules/.bin/*" -exec chmod +x {} \\; 2>/dev/null || true`,
+    `if pgrep -x nginx > /dev/null 2>&1; then sudo nginx -s reload 2>/dev/null || { sudo killall -9 nginx 2>/dev/null; sleep 1; sudo nginx; }; else sudo nginx; fi`,
+  ].join('\n');
+
+  const result = await execOneShot(workspaceId, cmd, username, timeoutMs);
+
+  let tunnelActive = false;
+  try {
+    const tunnelCheck = await execOneShot(
+      workspaceId,
+      'devbridge list -j 2>/dev/null | grep -q \'"tunnelId"\' && echo "ACTIVE" || echo "INACTIVE"',
+      username,
+      10000,
+    );
+    tunnelActive = String(tunnelCheck.stdout || '').includes('ACTIVE');
+  } catch {}
+
+  return {
+    ok: result.exitCode === 0,
+    nginxType,
+    port: targetPort,
+    nodePort: effectiveNodePort || undefined,
+    outputPath,
+    projectPath,
+    exitCode: result.exitCode,
+    stdout: result.stdout,
+    nextStep: 'expose_via_devbridge',
+    warning:
+      (!tunnelActive
+        ? 'No active DevBridge tunnel — deployment is incomplete. Proceed to Step 7 to expose the app.'
+        : portWarning) || undefined,
+  };
+}
+
+export async function deployCheck(
+  workspaceId,
+  { port, project, outputDir, frameworkType },
+  username = 'root',
+  timeoutMs = 30000,
+) {
+  if (!workspaceId) {
+    throw new Error('sandbox deploy check: workspace_id is required.');
+  }
+
+  const projectPath = `/workspace/${project}`;
+  const outputPath = outputDir.startsWith('/') ? outputDir : `${projectPath}/${outputDir}`;
+  const isCrossPlatform = frameworkType === 'cross-platform';
+
+  const checkScript = [
+    `echo "=== DEPLOY CHECK ==="`,
+    `PASS=0`,
+    `TOTAL=0`,
+    ``,
+    `TOTAL=$((TOTAL+1))`,
+    `if curl -s -o /dev/null -w "%{http_code}" http://localhost:${port} 2>/dev/null | grep -qE "^(2|3)"; then`,
+    `  echo "nginx_serving:PASS (port ${port})"`,
+    `  PASS=$((PASS+1))`,
+    `else`,
+    `  echo "nginx_serving:FAIL"`,
+    `fi`,
+    ``,
+    `TOTAL=$((TOTAL+1))`,
+    `if [ -d "${outputPath}" ] && ls -A "${outputPath}" 2>/dev/null | grep -q .; then`,
+    `  echo "output_dir:PASS (${outputPath})"`,
+    `  PASS=$((PASS+1))`,
+    `else`,
+    `  echo "output_dir:FAIL (${outputPath} empty or missing)"`,
+    `fi`,
+    ``,
+    `TOTAL=$((TOTAL+1))`,
+    `FINGERPRINT_FILE="${outputPath}/.deploy_fingerprint"`,
+    `FINGERPRINT_EXPECTED=$(cat "$FINGERPRINT_FILE" 2>/dev/null)`,
+    `if [ -n "$FINGERPRINT_EXPECTED" ]; then`,
+    `  FINGERPRINT_ACTUAL=$(curl -s http://localhost:${port}/.deploy_fingerprint 2>/dev/null)`,
+    `  if [ "$FINGERPRINT_EXPECTED" = "$FINGERPRINT_ACTUAL" ]; then`,
+    `    echo "content_verified:PASS"`,
+    `    PASS=$((PASS+1))`,
+    `  else`,
+    `    echo "content_verified:FAIL (fingerprint mismatch — nginx may be serving stale content from a previous deployment)"`,
+    `  fi`,
+    `else`,
+    `  echo "content_verified:SKIP (no fingerprint file)"`,
+    `  TOTAL=$((TOTAL-1))`,
+    `fi`,
+    ``,
+    `TOTAL=$((TOTAL+1))`,
+    `if devbridge list -j 2>/dev/null | grep -q '"tunnelId"'; then`,
+    `  echo "devbridge_tunnel:PASS"`,
+    `  PASS=$((PASS+1))`,
+    `else`,
+    `  echo "devbridge_tunnel:FAIL"`,
+    `fi`,
+    ``,
+    `TOTAL=$((TOTAL+1))`,
+    `TUNNEL_ID=$(devbridge list -j 2>/dev/null | grep -oP '"tunnelId":\\s*"\\K[^"]+' | head -1)`,
+    `TUNNEL_URL="https://\${TUNNEL_ID}-${port}.cn-north-4-bridge.myhuaweicloud.com"`,
+    `if [ -n "$TUNNEL_ID" ] && [ -n "$TUNNEL_URL" ]; then`,
+    `  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$TUNNEL_URL" 2>/dev/null || echo "000")`,
+    `  if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "304" ]; then`,
+    `    echo "tunnel_url_accessible:PASS ($TUNNEL_URL -> $HTTP_CODE)"`,
+    `    PASS=$((PASS+1))`,
+    `  else`,
+    `    echo "tunnel_url_accessible:FAIL ($TUNNEL_URL -> HTTP $HTTP_CODE)"`,
+    `  fi`,
+    `else`,
+    `  echo "tunnel_url_accessible:FAIL (no tunnel URL)"`,
+    `fi`,
+    ``,
+    `${`
+TOTAL=$((TOTAL+1))
+if [ -f "${outputPath}/qr.png" ]; then
+  echo "qr_code:PASS"
+  PASS=$((PASS+1))
+else
+  # Auto-detect cross-platform from project files (more reliable than frameworkType param)
+  PROJ_DIR="/workspace/${project}"
+  IS_CROSS=0
+  if [ -f "$PROJ_DIR/manifest.json" ] || grep -qE '"@tarojs/taro"|"@dcloudio/uni-app"' "$PROJ_DIR/package.json" 2>/dev/null; then
+    IS_CROSS=1
+  fi
+  if [ $IS_CROSS -eq 0 ] && ( [ -f "$PROJ_DIR/app.config.ts" ] || [ -f "$PROJ_DIR/app.config.js" ] ) && grep -qE "pages|tabBar" "$PROJ_DIR/app.config."* 2>/dev/null; then
+    IS_CROSS=1
+  fi
+
+  if [ $IS_CROSS -eq 1 ]; then
+    if [ -n "$TUNNEL_URL" ]; then
+      curl -s "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$TUNNEL_URL" 2>/dev/null)" -o "${outputPath}/qr.png" 2>/dev/null
+      chmod o+r "${outputPath}/qr.png" 2>/dev/null || true
+      if [ -f "${outputPath}/qr.png" ] && [ -s "${outputPath}/qr.png" ]; then
+        echo "qr_code:PASS (auto-generated)"
+        PASS=$((PASS+1))
+      else
+        echo "qr_code:FAIL (QR generation failed)"
+      fi
+    else
+      echo "qr_code:FAIL (no tunnel URL for QR generation)"
+    fi
+  else
+    echo "qr_code:SKIP (not a cross-platform project)"
+    TOTAL=$((TOTAL-1))
+  fi
+fi
+`}`,
+    `echo "SCORE:\${PASS}/\${TOTAL}"`,
+    `echo "TUNNEL_URL:\${TUNNEL_URL:-}"`,
+    `[ "\${PASS}" = "\${TOTAL}" ] && echo "VERDICT:COMPLETE" || echo "VERDICT:INCOMPLETE"`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const result = await execOneShot(workspaceId, checkScript, username, timeoutMs);
+  const stdout = String(result.stdout || '');
+  const checks = {};
+  const lines = stdout.split('\n');
+  for (const line of lines) {
+    const m = line.match(/^(\w+):(\w+)\b(.*)/);
+    if (m) checks[m[1]] = { status: m[2], detail: (m[3] || '').trim() };
+  }
+  const scoreMatch = stdout.match(/SCORE:(\d+)\/(\d+)/);
+  const tunnelMatch = stdout.match(/TUNNEL_URL:(https:\/\/[^\s]+)/);
+  const complete = /VERDICT:COMPLETE/.test(stdout);
+
+  const missing = [];
+  if (!complete) {
+    for (const [key, val] of Object.entries(checks)) {
+      if (val.status === 'FAIL') missing.push(key);
+    }
+  }
+
+  return {
+    ok: true,
+    complete,
+    checkType: isCrossPlatform ? 'cross-platform' : 'standard',
+    checks,
+    score: scoreMatch ? { pass: parseInt(scoreMatch[1], 10), total: parseInt(scoreMatch[2], 10) } : null,
+    publicUrl: tunnelMatch ? tunnelMatch[1] : undefined,
+    missingSteps: missing.length > 0 ? missing.join(', ') : undefined,
+    nextStep: !complete
+      ? missing.includes('devbridge_tunnel') || missing.includes('tunnel_url_accessible')
+        ? 'expose_via_devbridge'
+        : missing.includes('nginx_serving')
+          ? 'configure_nginx'
+          : missing.includes('qr_code')
+            ? 'generate_qr_code'
+            : 'review_checks'
+      : 'complete',
   };
 }
 
@@ -615,4 +1035,4 @@ export async function closeAllSessions() {
   }
 }
 
-export { currentWorkspaceId, setWorkspaceId, runNodeExec };
+export { getCurrentWorkspaceId, setWorkspaceId, runNodeExec };

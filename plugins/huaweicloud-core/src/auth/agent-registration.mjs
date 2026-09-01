@@ -9,11 +9,13 @@ export const SUPPORTED_AGENT_TARGETS = [
   'codex',
   'codex-desktop',
   'codearts',
+  'codearts-work',
   'workbuddy',
   'dsh',
   'officeace',
   'hermes',
   'openclaw',
+  'atomcode',
 ];
 
 function baseHome() {
@@ -75,6 +77,12 @@ function codeartsRegistered() {
     const cfg = readJsonSafe(path);
     return Boolean(cfg?.mcpServers?.['huaweicloud-devkit']);
   });
+}
+
+function codeartsWorkRegistered() {
+  const path = join(baseHome(), '.codeartswork', 'mcp', 'mcp_settings.json');
+  const cfg = readJsonSafe(path);
+  return Boolean(cfg?.mcpServers?.['huaweicloud-devkit']);
 }
 
 function workbuddyRegistered() {
@@ -169,6 +177,20 @@ function officeaceRegistered() {
   return hasMcp || hasSkills;
 }
 
+function atomcodeHome() {
+  return process.env.ATOMCODE_HOME || join(baseHome(), '.atomcode');
+}
+
+function atomcodeRegistered() {
+  const cfg = readJsonSafe(join(atomcodeHome(), 'mcp.json'));
+  return Boolean(cfg?.mcpServers?.['huaweicloud-devkit']);
+}
+
+function openclawRegistered() {
+  const cfg = readJsonSafe(join(baseHome(), '.agents', 'huaweicloud-plugins', '.mcp.json'));
+  return Boolean(cfg?.mcpServers?.['huaweicloud-devkit']);
+}
+
 function hermesHome() {
   if (process.env.HERMES_HOME) return process.env.HERMES_HOME;
   // Hermes on Windows stores under LOCALAPPDATA, not ~/.hermes
@@ -198,10 +220,13 @@ export function getAgentRegistrationStatuses(target = 'all') {
     if (agent === 'codex-desktop') configured = codexDesktopRegistered();
     if (agent === 'codex') configured = codexCliRegistered();
     if (agent === 'codearts') configured = codeartsRegistered();
+    if (agent === 'codearts-work') configured = codeartsWorkRegistered();
     if (agent === 'workbuddy') configured = workbuddyRegistered();
     if (agent === 'dsh') configured = dshRegistered();
     if (agent === 'officeace') configured = officeaceRegistered();
     if (agent === 'hermes') configured = hermesRegistered();
+    if (agent === 'openclaw') configured = openclawRegistered();
+    if (agent === 'atomcode') configured = atomcodeRegistered();
     result.agents[agent] = { configured };
   }
   return result;

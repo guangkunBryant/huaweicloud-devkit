@@ -40,17 +40,50 @@ if (hasTags) {
 
 let nextVersion;
 if (branch === 'dev') {
-  const match = currentVersion.match(/^(\d+\.\d+\.\d+)-(next)\.(\d+)$/);
-  if (match) {
-    const [, base, label, counter] = match;
-    nextVersion = `${base}-${label}.${parseInt(counter, 10) + 1}`;
-  } else {
-    const match2 = currentVersion.match(/^(\d+\.\d+\.\d+)$/);
-    if (match2) {
-      nextVersion = `${match2[1]}-next.0`;
-    } else {
-      process.exit(1);
+  const allTags = execSync('git tag -l "v*" --sort=-version:refname', { encoding: 'utf8' })
+    .trim()
+    .split('\n')
+    .filter((t) => t);
+  const stableRe = /^v(\d+)\.(\d+)\.(\d+)$/;
+  let latestStable = '0.0.0';
+  for (const tag of allTags) {
+    const m = tag.match(stableRe);
+    if (m) {
+      latestStable = `${m[1]}.${m[2]}.${m[3]}`;
+      break;
     }
+  }
+
+  let overrideBase = '';
+  try {
+    overrideBase = readFileSync(join(root, '.version-override'), 'utf8').trim();
+  } catch {
+    // no override file
+  }
+
+  let nextStable;
+  if (overrideBase) {
+    nextStable = overrideBase;
+  } else {
+    const parts = latestStable.split('.').map(Number);
+    parts[2] += 1;
+    nextStable = parts.join('.');
+  }
+
+  const nextTags = execSync(`git tag -l "v${nextStable}-next.*"`, { encoding: 'utf8' })
+    .trim()
+    .split('\n')
+    .filter((t) => t);
+
+  if (nextTags.length > 0) {
+    const counters = nextTags.map((t) => {
+      const m = t.match(/-next\.(\d+)$/);
+      return m ? parseInt(m[1], 10) : -1;
+    });
+    const maxCounter = Math.max(...counters);
+    nextVersion = `${nextStable}-next.${maxCounter + 1}`;
+  } else {
+    nextVersion = `${nextStable}-next.0`;
   }
 } else {
   let override = '';
