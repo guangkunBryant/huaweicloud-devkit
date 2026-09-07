@@ -1,4 +1,13 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, readlinkSync, statSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readlinkSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -55,10 +64,19 @@ export function writeGlobalCredentials(credentials = {}) {
     sk: String(credentials.sk || ''),
     securityToken: String(credentials.securityToken || ''),
     region: String(credentials.region || ''),
+    ...(credentials.configuredBySession === undefined
+      ? {}
+      : { configuredBySession: Boolean(credentials.configuredBySession) }),
   };
   writeFileSync(path, JSON.stringify(payload, null, 2), { encoding: 'utf8', mode: 0o600 });
   ensurePrivateMode(path);
   return path;
+}
+
+export function setConfiguredBySession(flag) {
+  const stored = readGlobalCredentials();
+  const next = { ...(stored || {}), configuredBySession: Boolean(flag) };
+  writeGlobalCredentials(next);
 }
 
 export function writeObsConfig(credentials = {}) {
@@ -99,6 +117,33 @@ export function resolveCredentials(options = {}) {
     if (!region && stored.region) region = stored.region;
   }
 
+  // R9: S1 written by `auth_switch persist` (configuredBySession) is the session's
+  // source of truth and wins over env-injected defaults. Plain S1 (`auth init`)
+  // still yields to env so devspace-style env injection keeps working.
+  if (stored && stored.configuredBySession === true && stored.ak && stored.sk) {
+    ak = stored.ak;
+    sk = stored.sk;
+    if (!securityToken) securityToken = stored.securityToken || '';
+    if (!region) region = stored.region || '';
+  }
+
+  // Sandbox/platform-injected temporary STS credentials (env vars carrying a
+  // security token) must not shadow the user's explicit permanent credentials
+  // from `auth init`. Prefer the stored file when both exist.
+  if (
+    process.env.HW_ACCESS_KEY &&
+    process.env.HW_SECRET_KEY &&
+    process.env.HW_SECURITY_TOKEN &&
+    stored &&
+    stored.ak &&
+    stored.sk
+  ) {
+    ak = stored.ak;
+    sk = stored.sk;
+    securityToken = stored.securityToken || '';
+    region = stored.region || region;
+  }
+
   if (!ak || !sk) {
     if (options.allowMissing) return null;
     throw new Error(
@@ -130,7 +175,7 @@ function isCodeArtsContext() {
   );
 }
 
-function readCodeArtsCredentials() {
+export function readCodeArtsCredentials() {
   const parentCwd = getParentCwd();
   const searchDirs = [process.env.CODEARTS_PROJECT_DIR, parentCwd, process.cwd(), homedir()];
 
@@ -164,16 +209,16 @@ function readCodeArtsCredentials() {
     try {
       if (existsSync(path)) {
         const config = JSON.parse(readFileSync(path, 'utf8'));
-        const server = config?.mcpServers?.['huaweicloud-devkit'];
-        if (server?.env) {
-          const ak = server.env.HW_ACCESS_KEY;
-          const sk = server.env.HW_SECRET_KEY;
+        const server = config?.mcp?.['huaweicloud-devkit'];
+        if (server?.environment) {
+          const ak = server.environment.HW_ACCESS_KEY;
+          const sk = server.environment.HW_SECRET_KEY;
           if (ak && sk) {
             return {
               ak,
               sk,
-              securityToken: server.env.HW_SECURITY_TOKEN || '',
-              region: server.env.HW_REGION || server.env.HUAWEICLOUD_REGION || '',
+              securityToken: server.environment.HW_SECURITY_TOKEN || '',
+              region: server.environment.HW_REGION || server.environment.HUAWEICLOUD_REGION || '',
             };
           }
         }
@@ -196,6 +241,10 @@ export function clearRuntimeCredentials() {
   runtimeCredentials = null;
 }
 
+export function hasRuntimeCredentials() {
+  return runtimeCredentials !== null;
+}
+
 export function resolveCredentialsWithRuntime(options = {}) {
   if (runtimeCredentials) {
     return {
@@ -207,4 +256,52 @@ export function resolveCredentialsWithRuntime(options = {}) {
   }
 
   return resolveCredentials(options);
+}
+
+export function lastSyncPath() {
+  return join(baseHome(), '.config', 'huaweicloud', '.last_sync');
+}
+
+export function readLastSync() {
+  const path = lastSyncPath();
+  if (!existsSync(path)) return null;
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+export function writeLastSync() {
+  const path = lastSyncPath();
+  mkdirSync(dirname(path), { recursive: true });
+  const payload = { ts: Date.now() };
+  writeFileSync(path, JSON.stringify(payload), { encoding: 'utf8', mode: 0o600 });
+  ensurePrivateMode(path);
+}
+
+export function backupGlobalCredentials() {
+  const path = globalCredentialsPath();
+  if (!existsSync(path)) return null;
+  const bakPath = `${path}.bak`;
+  try {
+    copyFileSync(path, bakPath);
+    ensurePrivateMode(bakPath);
+    return bakPath;
+  } catch {
+    return null;
+  }
+}
+
+export function restoreGlobalCredentialsBackup() {
+  const path = globalCredentialsPath();
+  const bakPath = `${path}.bak`;
+  if (!existsSync(bakPath)) return false;
+  try {
+    copyFileSync(bakPath, path);
+    ensurePrivateMode(path);
+    return true;
+  } catch {
+    return false;
+  }
 }

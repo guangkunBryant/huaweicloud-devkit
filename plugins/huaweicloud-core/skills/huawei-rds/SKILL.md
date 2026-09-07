@@ -10,6 +10,10 @@ version: 1
 
 Always run `hcloud RDS <Operation> --help` before constructing commands to discover exact parameter names and requirements.
 
+## Deployment Routing Guard
+
+If this skill was reached via a DEPLOYMENT intent (the database is part of an application deployment, not a standalone ad-hoc operation), this is a cloud resource purchase: load `huawei-iac` first for orchestration (mandatory cost+balance gate, batch approval, session state, ordered destroy), then return here for the exact instance commands. Sandbox-deployed workloads (huawei-sandbox) bypass iac - no purchase involved.
+
 ## Prerequisites
 
 Before creating an RDS instance, you MUST have:

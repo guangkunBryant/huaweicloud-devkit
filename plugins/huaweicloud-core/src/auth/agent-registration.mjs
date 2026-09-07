@@ -82,7 +82,7 @@ function codeartsRegistered() {
 function codeartsWorkRegistered() {
   const path = join(baseHome(), '.codeartswork', 'mcp', 'mcp_settings.json');
   const cfg = readJsonSafe(path);
-  return Boolean(cfg?.mcpServers?.['huaweicloud-devkit']);
+  return Boolean(cfg?.mcp?.['huaweicloud-devkit']);
 }
 
 function workbuddyRegistered() {
@@ -100,7 +100,7 @@ function dshRegistered() {
   try {
     const patch = readFileSync(patchPath, 'utf8');
     return (
-      patch.includes('id: mcp-huaweicloud') &&
+      (patch.includes('id: huaweicloud-devkit') || patch.includes('id: mcp-huaweicloud')) &&
       patch.includes('@deepseek-ai/dsh-mcp-client') &&
       patch.includes('serverName: huaweicloud')
     );
@@ -186,9 +186,18 @@ function atomcodeRegistered() {
   return Boolean(cfg?.mcpServers?.['huaweicloud-devkit']);
 }
 
+function openclawMcpConfigured(cfg) {
+  if (!cfg) return false;
+  if (cfg.mcpServers?.['huaweicloud-devkit']) return true;
+  if (cfg.mcp?.servers?.['huaweicloud-devkit']) return true;
+  return false;
+}
+
 function openclawRegistered() {
-  const cfg = readJsonSafe(join(baseHome(), '.agents', 'huaweicloud-plugins', '.mcp.json'));
-  return Boolean(cfg?.mcpServers?.['huaweicloud-devkit']);
+  const pluginCfg = readJsonSafe(join(baseHome(), '.agents', 'huaweicloud-plugins', '.mcp.json'));
+  if (openclawMcpConfigured(pluginCfg)) return true;
+  const nativeCfg = readJsonSafe(join(baseHome(), '.openclaw', 'openclaw.json'));
+  return openclawMcpConfigured(nativeCfg);
 }
 
 function hermesHome() {

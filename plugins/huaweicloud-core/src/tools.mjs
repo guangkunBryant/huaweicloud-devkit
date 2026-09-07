@@ -1,8 +1,9 @@
-import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readFileSync, readdirSync, existsSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
+import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { homedir } from 'node:os';
-import { spawnSync } from 'node:child_process';
+import { homedir, tmpdir } from 'node:os';
+import { spawnSync, execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 import { evaluateArtifacts, evaluateCommandRisk, evaluateDeployPlan } from './risk-rule-engine.mjs';
 import { classifyTextCommand, redactSecrets } from './safety-policy.mjs';
@@ -33,10 +34,18 @@ import { getCredentials } from './sandbox/hwlink-api.mjs';
 import { getAuthStatus, syncAuth } from './auth/service.mjs';
 import {
   readGlobalCredentials,
+  writeGlobalCredentials,
   writeObsConfig as writeObsConfigFile,
   setRuntimeCredentials,
   clearRuntimeCredentials,
+  setConfiguredBySession,
+  backupGlobalCredentials,
+  writeLastSync,
+  readCodeArtsCredentials,
+  globalCredentialsPath,
 } from './auth/credentials.mjs';
+import { trackToolInvoke, trackSkillRetrieve } from './telemetry/telemetry.mjs';
+import { fingerprint, runHcloudConfigure, resolveManagedProfile } from './auth/reconcile.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SKILLS_ROOT_DEV = join(__dirname, '..', 'skills');
@@ -500,6 +509,34 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: 'huaweicloud_auth_switch',
+    description:
+      'Switch Huawei Cloud credentials within the current session. action=temporary keeps AK/SK in memory only (restart loses them; hcloud commands are unaffected and an A+C warning will be raised). action=persist writes S1 (single source of truth) with configuredBySession flag and propagates to S2 (KooCLI current profile) and S3 (OBS). action=clear resets runtime credentials. mode=import reads AK/SK from ~/.config/huaweicloud/creds-import.json then wipes it (SK never enters conversation). mode=memory passes AK/SK as tool arguments (SK is visible to model - prefer import). mode=mcp-config reads the injected mcp_settings environment.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['import', 'memory', 'mcp-config'], description: 'Credential source channel' },
+        action: { type: 'string', enum: ['persist', 'temporary', 'clear'], description: 'Apply scope' },
+        ak: { type: 'string' },
+        sk: { type: 'string' },
+        securityToken: { type: 'string' },
+        region: { type: 'string' },
+      },
+    },
+  },
+  {
+    name: 'huaweicloud_auth_confirm',
+    description:
+      'Confirm a pending credential reconciliation choice returned by auth_switch persist when S1 already holds a different account (R2). decision=s1 keeps S1 as source of truth and propagates it; decision=newImported propagates the newly imported account into S1 and mirrors.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        token: { type: 'string', description: 'confirmation token from the needs_confirmation response' },
+        decision: { type: 'string', enum: ['s1', 'newImported'] },
+      },
+    },
+  },
+  {
     name: 'huaweicloud_sandbox_exec_with_session',
     description:
       'Execute a command on a workspace terminal with session reuse (state persists across calls). Shell state (cd, env vars, aliases) carries over between calls. Use for interactive work and command sequences that need shared state. NOT for long-running commands (>30s) — prefer exec_one_shot for those.',
@@ -733,7 +770,8 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'huaweicloud_voucher_status',
-    description: '查询代金券领取状态。',
+    description:
+      '查询代金券领取状态。用户首次使用、开始会话或询问插件能力时，应主动调用本工具检查：未领取（claimed=false）则主动提示可领取一张代金券；已领取（claimed=true）则不提示、不打扰。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -759,7 +797,165 @@ export const TOOL_DEFINITIONS = [
   },
 ];
 
+function toolInvokeValue(name, args) {
+  if (name === 'huaweicloud_run_readonly_command' || name === 'huaweicloud_run_approved_command') {
+    const cmdArgs = args.args || [];
+    const filtered = cmdArgs.filter((a) => !a.startsWith('--') && !a.startsWith('-') && !a.includes('='));
+    if (filtered.length >= 2) return `hcloud ${filtered.slice(0, 2).join(' ')}`;
+  }
+  if (name === 'huaweicloud_list_operations' && args.service) {
+    return args.service;
+  }
+  if (name === 'huaweicloud_retrieve_skill' && args.name) {
+    return args.name;
+  }
+  if (name === 'huaweicloud_hook_check_command' && args.command) {
+    const parts = args.command.split(/\s+/).filter((p) => !p.startsWith('--'));
+    if (parts[0] === 'hcloud' && parts[1]) return `hcloud ${parts.slice(1, 3).join(' ')}`;
+    return parts.slice(0, 2).join(' ');
+  }
+  return '1';
+}
+
+const execFilePromise = promisify(execFile);
+
+async function isGitAvailable() {
+  try {
+    await execFilePromise('git', ['--version'], { timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function gitCloneToLocal(repoUrl, branch, targetBasename) {
+  const tempRoot = join(tmpdir(), `hw-sandbox-git-${Date.now()}`);
+  const cloneDir = join(tempRoot, targetBasename);
+  mkdirSync(tempRoot, { recursive: true });
+  const args = ['clone', '--depth', '1'];
+  if (branch) args.push('-b', branch);
+  args.push(repoUrl, cloneDir);
+  await execFilePromise('git', args, { timeout: 120000 });
+  return { cloneDir, tempRoot };
+}
+
+async function transferGitRepo(args, devStageId, connectResult) {
+  const git = args.git;
+  if (!git?.repo_url || !git?.target_path) return;
+
+  const { repo_url, repo_branch, target_path } = git;
+
+  try {
+    const existsCheck = await execOneShot(
+      devStageId,
+      `test -d "${target_path}/.git" && echo "EXISTS" || echo "NOT_EXISTS"`,
+      'root',
+      10000,
+    );
+    if (String(existsCheck.stdout || '').includes('EXISTS')) {
+      connectResult._repoStatus = 'already_exists';
+      return;
+    }
+  } catch {
+    /* 检查失败继续 */
+  }
+
+  const hasGit = await isGitAvailable();
+  if (hasGit) {
+    let tempRoot = null;
+    try {
+      const targetName = basename(target_path);
+      const { cloneDir, tempRoot: root } = await gitCloneToLocal(repo_url, repo_branch, targetName);
+      tempRoot = root;
+      await uploadProjectWithSession(devStageId, cloneDir, dirname(target_path), 'root', 300000, {
+        extract: true,
+        exclude: ['.git', 'node_modules'],
+      });
+      connectResult._repoStatus = 'uploaded_from_local';
+      return;
+    } catch {
+      /* 本地方式失败，进入兜底 */
+    } finally {
+      if (tempRoot) {
+        try {
+          rmSync(tempRoot, { recursive: true, force: true });
+        } catch {
+          /* 清理失败忽略 */
+        }
+      }
+    }
+  }
+
+  const branchFlag = repo_branch ? `-b ${repo_branch}` : '';
+  await execOneShot(
+    devStageId,
+    `mkdir -p $(dirname "${target_path}") && git clone --depth 1 ${branchFlag} "${repo_url}" "${target_path}"`,
+    'root',
+    120000,
+  );
+  connectResult._repoStatus = 'cloned_in_sandbox';
+}
+
+const pendingConfirms = new Map();
+
+function readImportFile() {
+  const path = join(dirname(globalCredentialsPath()), 'creds-import.json');
+  try {
+    if (!existsSync(path)) return null;
+    const data = JSON.parse(readFileSync(path, 'utf8'));
+    return {
+      ak: String(data.ak || ''),
+      sk: String(data.sk || ''),
+      securityToken: String(data.securityToken || ''),
+      region: String(data.region || ''),
+    };
+  } catch {
+    return null;
+  } finally {
+    rmSync(path, { force: true });
+  }
+}
+
+function persistCredentials(ak, sk, securityToken, region) {
+  if (String(securityToken || '')) {
+    return {
+      status: 'error',
+      error: 'Temporary STS credentials cannot be persisted (R3). Use action=temporary.',
+      scope: 'rejected',
+    };
+  }
+  const before = backupGlobalCredentials();
+  writeGlobalCredentials({ ak, sk: String(sk), securityToken: '', region, configuredBySession: true });
+  setConfiguredBySession(true);
+  let obs;
+  try {
+    writeObsConfigFile({ ak, sk, securityToken, region });
+    obs = { ok: true };
+  } catch (error) {
+    obs = { ok: false, error: error.message };
+  }
+  const profile = resolveManagedProfile();
+  let hcloud;
+  if (!profile) {
+    hcloud = { ok: false, reason: 'KooCLI current profile unresolved' };
+  } else {
+    hcloud = runHcloudConfigure(profile, ak, sk, region);
+  }
+  writeLastSync();
+  return {
+    status: 'ok',
+    scope: 'persist',
+    backedUp: Boolean(before),
+    obs: obs.ok ? { configured: true } : { configured: false, error: obs.error },
+    hcloud,
+    note: 'S1 written with configuredBySession (R9), which now takes priority over env-injected credentials; S2(current profile) and S3 synced. Note: running `auth init` later clears the configuredBySession flag and env credentials regain priority.',
+  };
+}
+
 export async function callTool(name, args = {}) {
+  const toolValue = toolInvokeValue(name, args);
+  trackToolInvoke(name, toolValue);
+
   switch (name) {
     case 'huaweicloud_check_cli':
       return runVersionCheck();
@@ -789,6 +985,7 @@ export async function callTool(name, args = {}) {
     case 'huaweicloud_search_docs':
       return searchDocs(args.query || '', args.topic || 'all');
     case 'huaweicloud_retrieve_skill':
+      trackSkillRetrieve(args.name || '');
       return retrieveSkill(args.name || '');
     case 'huaweicloud_list_regions':
       return listRegions();
@@ -825,6 +1022,81 @@ export async function callTool(name, args = {}) {
       }
       setRuntimeCredentials(args.ak, args.sk, undefined, args.region);
       return { status: 'ok', message: 'Runtime credentials set for this MCP session.' };
+    case 'huaweicloud_auth_switch': {
+      const action = args.action || 'temporary';
+      if (action === 'clear') {
+        clearRuntimeCredentials();
+        return { status: 'cleared', message: 'Runtime credentials cleared. Fallback to env/file/S1.' };
+      }
+
+      let ak = args.ak || '';
+      let sk = args.sk || '';
+      let securityToken = args.securityToken || '';
+      let region = args.region || '';
+      const sourceChannel = args.mode || 'memory';
+
+      if (sourceChannel === 'import' && (!ak || !sk)) {
+        const imported = readImportFile();
+        if (imported) ({ ak, sk, securityToken, region } = imported);
+      }
+      if (sourceChannel === 'mcp-config' && (!ak || !sk)) {
+        const cc = readCodeArtsCredentials();
+        if (cc) {
+          ak = cc.ak;
+          sk = cc.sk;
+          securityToken = cc.securityToken || '';
+          region = cc.region || region;
+        }
+      }
+
+      if (!ak || !sk) {
+        throw new Error('ak and sk are required (or provide creds-import.json for mode=import).');
+      }
+
+      if (action === 'temporary') {
+        setRuntimeCredentials(ak, sk, securityToken || undefined, region);
+        return {
+          status: 'ok',
+          scope: 'temporary',
+          note: 'Runtime credentials active for this MCP process. hcloud commands still use the KooCLI current profile; use action=persist to align files.',
+        };
+      }
+
+      // action === 'persist'
+      const prev = readGlobalCredentials();
+      const conflict = prev?.ak && prev.ak !== ak;
+      if (conflict) {
+        backupGlobalCredentials();
+        const token = `switch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        pendingConfirms.set(token, {
+          newAk: ak,
+          newSk: sk,
+          newSecurityToken: securityToken,
+          newRegion: region,
+          oldFingerprint: fingerprint(prev.ak, prev.sk),
+          newFingerprint: fingerprint(ak, sk),
+        });
+        return {
+          status: 'needs_confirmation',
+          confirmToken: token,
+          options: [
+            { key: 's1', label: '以 S1 现有账号为准（不切换，恢复 backup）' },
+            { key: 'newImported', label: `以新账号（${fingerprint(ak, sk)}）为准，覆盖 S1 并同步全部凭证文件` },
+          ],
+        };
+      }
+
+      return persistCredentials(ak, sk, securityToken, region);
+    }
+    case 'huaweicloud_auth_confirm': {
+      const pending = pendingConfirms.get(args.token);
+      if (!pending) throw new Error('confirmToken not found or expired.');
+      pendingConfirms.delete(args.token);
+      if (args.decision === 's1') {
+        return { status: 'ok', outcome: 'aborted', message: '保持 S1 现有账号，未覆盖。' };
+      }
+      return persistCredentials(pending.newAk, pending.newSk, pending.newSecurityToken, pending.newRegion);
+    }
     case 'huaweicloud_sandbox_exec_with_session': {
       const sandboxWsId2 = args.workspace_id || getCurrentWorkspaceId();
       if (!sandboxWsId2) {
@@ -974,6 +1246,10 @@ export async function callTool(name, args = {}) {
         try {
           await execOneShot(devStageId, 'devbridge delete-all 2>/dev/null || true', 'root', 15000);
         } catch {}
+        try {
+          await execWithSession(devStageId, 'export PATH=$HOME/.huawei/bin${PATH:+:$PATH}', 'root', 10000);
+        } catch {}
+        await transferGitRepo(args, devStageId, connectResult);
       }
       return connectResult;
     }
@@ -999,6 +1275,7 @@ export async function callTool(name, args = {}) {
             'root',
             15000,
           );
+          await execWithSession(sandboxWsIdCred, `source ${credsFile} && echo "CREDS_SOURCED"`, 'root', 15000);
         } catch {}
       }
       return credResult;
@@ -1044,7 +1321,7 @@ export async function runVersionCheck(options = {}) {
         ? 'hcloud executable not found. Set HCLOUD_BIN to the full hcloud path, or install KooCLI: npx huaweicloud-devkit install-hcloud. Then restart the agent.'
         : 'Install Huawei Cloud KooCLI: npx huaweicloud-devkit install-hcloud. Configure credentials outside the agent conversation.',
     authHint:
-      'If hcloud is installed but commands fail with "配置文件中不存在配置项", run `hcloud configure set --cli-access-key=<AK> --cli-secret-key=<SK> --cli-region=<region>` outside agent chat to configure credentials.',
+      'If hcloud is installed but commands fail with "配置文件中不存在配置项", run `npx huaweicloud-devkit auth init` outside agent chat to configure credentials.',
   };
 }
 
@@ -1157,7 +1434,7 @@ async function setupObsConfigFromHcloud(profile) {
     return {
       ok: false,
       error: 'No region found in hcloud profile.',
-      nextStep: 'Run "hcloud configure set --cli-region=<region>" outside agent chat to set a default region.',
+      nextStep: 'Run "npx huaweicloud-devkit auth init" outside agent chat to configure credentials and region.',
     };
   }
 
@@ -1244,7 +1521,14 @@ async function runApprovedCommand(args = {}) {
   }
   const providedArgs = Array.isArray(args.args) ? args.args.map(String) : [];
   if (JSON.stringify(storedArgs) !== JSON.stringify(providedArgs)) {
-    throw new Error('Provided args do not match the approved plan. Use the exact args from the plan.');
+    const redactedStored = redactSecrets(storedArgs);
+    const redactedProvided = redactSecrets(providedArgs);
+    if (JSON.stringify(redactedStored) !== JSON.stringify(redactedProvided)) {
+      throw new Error(
+        'Provided args do not match the approved plan. Use the exact args from the plan. ' +
+          'If the plan shows <redacted> for passwords or secrets, replace <redacted> with the actual values in approvedCommand.',
+      );
+    }
   }
   const strictPlan = planHcloudCommand(providedArgs, { allowWrites: false });
   const result = await runHcloud(providedArgs, {

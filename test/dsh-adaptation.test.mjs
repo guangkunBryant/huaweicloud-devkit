@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,7 +51,7 @@ function readPatch(dshHome) {
 }
 
 function countMcpRows(patch) {
-  return (patch.match(/id: mcp-huaweicloud/g) || []).length;
+  return (patch.match(/id: (?:huaweicloud-devkit|mcp-huaweicloud)/g) || []).length;
 }
 
 test('dsh install copies skills, MCP server, safety policy, and patch row', () => {
@@ -68,13 +77,14 @@ test('dsh install copies skills, MCP server, safety policy, and patch row', () =
     );
 
     const patch = readPatch(dshHome);
-    assert.match(patch, /id: mcp-huaweicloud/);
+    assert.match(patch, /id: huaweicloud-devkit/);
     assert.match(patch, /name: '@deepseek-ai\/dsh-mcp-client'/);
     assert.match(patch, /serverName: huaweicloud/);
     assert.match(patch, /transport: stdio/);
     assert.match(patch, /failOnStartupError: false/);
     assert.match(patch, /HUAWEICLOUD_AGENT_TOOLKIT_MODE: local/);
-    assert.match(patch, /HDKITSERVICE_ENDPOINT: ''/);
+    assert.match(patch, /id: huaweicloud-hook/);
+    assert.match(patch, /huaweicloud-plugins\/hook-plugin\.mjs/);
     assert.doesNotMatch(patch, /\\/);
     assert.match(patch, /huaweicloud-plugins\/src\/mcp-server\.mjs/);
   } finally {
@@ -217,6 +227,85 @@ test('dsh uninstall preserves non-Huawei skills directory entries', () => {
   } finally {
     rmSync(home, { recursive: true, force: true });
     rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('bundled cordis.patch.yml has no self loader entry and only the MCP insert', () => {
+  const patch = readFileSync(join(root, 'cordis.patch.yml'), 'utf8');
+  assert.match(patch, /id: huaweicloud-devkit/);
+  assert.match(patch, /name: '@deepseek-ai\/dsh-mcp-client'/);
+  assert.doesNotMatch(patch, /name: huaweicloud-devkit/, 'must not import itself as a loader entry');
+  assert.equal(countMcpRows(patch), 1, 'exactly one insert entry');
+});
+
+test('dsh bundle postinstall rewrites relative MCP path to absolute', () => {
+  const home = mkdtempSync(join(tmpdir(), 'dsh-home-'));
+  const stage = mkdtempSync(join(tmpdir(), 'dsh-pkg-'));
+  try {
+    const dshHome = join(home, '.dsh');
+    const profileDir = join(dshHome, 'profiles', 'web');
+    mkdirSync(profileDir, { recursive: true });
+
+    mkdirSync(join(stage, 'bin'), { recursive: true });
+    copyFileSync(join(root, 'bin', 'dsh-postinstall.cjs'), join(stage, 'bin', 'dsh-postinstall.cjs'));
+    copyFileSync(join(root, 'cordis.patch.yml'), join(stage, 'cordis.patch.yml'));
+
+    const res = spawnSync(process.execPath, [join(stage, 'bin', 'dsh-postinstall.cjs')], {
+      cwd: profileDir,
+      env: makeEnv(home, dshHome),
+      encoding: 'utf8',
+      timeout: 60000,
+    });
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /rewrote DSH patch MCP path/);
+
+    const patch = readFileSync(join(stage, 'cordis.patch.yml'), 'utf8');
+    assert.match(patch, /id: huaweicloud-devkit/);
+    assert.match(patch, /mcp-server\.mjs/);
+    assert.doesNotMatch(patch, /'\.\//, 'no relative MCP path left');
+    assert.doesNotMatch(patch, /\\/, 'forward slashes only');
+    assert.ok(
+      patch.includes(`'${stage.replaceAll('\\', '/')}/plugins/huaweicloud-core/src/mcp-server.mjs'`),
+      'absolute staged package path',
+    );
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(stage, { recursive: true, force: true });
+  }
+});
+
+test('dsh bundle postinstall is idempotent when MCP path is already absolute', () => {
+  const home = mkdtempSync(join(tmpdir(), 'dsh-home-'));
+  const stage = mkdtempSync(join(tmpdir(), 'dsh-pkg-'));
+  try {
+    const dshHome = join(home, '.dsh');
+    const profileDir = join(dshHome, 'profiles', 'web');
+    mkdirSync(profileDir, { recursive: true });
+
+    mkdirSync(join(stage, 'bin'), { recursive: true });
+    copyFileSync(join(root, 'bin', 'dsh-postinstall.cjs'), join(stage, 'bin', 'dsh-postinstall.cjs'));
+    copyFileSync(join(root, 'cordis.patch.yml'), join(stage, 'cordis.patch.yml'));
+
+    const run = () =>
+      spawnSync(process.execPath, [join(stage, 'bin', 'dsh-postinstall.cjs')], {
+        cwd: profileDir,
+        env: makeEnv(home, dshHome),
+        encoding: 'utf8',
+        timeout: 60000,
+      });
+
+    const first = run();
+    assert.equal(first.status, 0, first.stderr);
+    const afterFirst = readFileSync(join(stage, 'cordis.patch.yml'), 'utf8');
+
+    const second = run();
+    assert.equal(second.status, 0, second.stderr);
+    assert.doesNotMatch(second.stdout, /rewrote DSH patch MCP path/, 'second run is a no-op');
+    const afterSecond = readFileSync(join(stage, 'cordis.patch.yml'), 'utf8');
+    assert.equal(afterSecond, afterFirst, 'patch unchanged on second run');
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(stage, { recursive: true, force: true });
   }
 });
 

@@ -37,6 +37,7 @@ assert.ok(
 
 const pkg = readJson(join(root, 'package.json'));
 const pluginManifests = [
+  join(root, 'plugin.json'),
   join(pluginRoot, '.codex-plugin', 'plugin.json'),
   join(pluginRoot, '.claude-plugin', 'plugin.json'),
   join(pluginRoot, '.cursor-plugin', 'plugin.json'),
@@ -47,6 +48,21 @@ const pluginManifests = [
 for (const path of pluginManifests) {
   const manifest = readJson(path);
   assert.equal(pkg.version, manifest.version, `package.json version must match ${path}`);
+}
+
+const dshPatch = pkg.dsh?.bundle?.patch;
+if (dshPatch) {
+  const patchPath = join(root, dshPatch);
+  assert.ok(existsSync(patchPath), `dsh.bundle.patch points to a missing file: ${dshPatch}`);
+  const files = Array.isArray(pkg.files) ? pkg.files : [];
+  const covered = files.some(
+    (entry) =>
+      entry === dshPatch.replace(/^\.\//, '') || dshPatch.startsWith(`./${entry}/`) || dshPatch === `./${entry}`,
+  );
+  assert.ok(
+    covered,
+    `dsh.bundle.patch (${dshPatch}) is not covered by the package.json "files" whitelist and will be stripped from the published tarball`,
+  );
 }
 
 const skills = readdirSync(join(pluginRoot, 'skills')).filter((name) =>

@@ -8,6 +8,10 @@ version: 1
 
 **STOP - Do not answer from general knowledge.** Follow the procedure below.
 
+## Deployment Routing Guard
+
+If this skill was reached via a DEPLOYMENT intent (the gateway instance is part of an application deployment, not a standalone ad-hoc operation), this is a cloud resource purchase: load `huawei-iac` first for orchestration (mandatory cost+balance gate, batch approval, session state, ordered destroy), then return here for the exact instance/API commands. Sandbox-deployed workloads (huawei-sandbox) bypass iac - no purchase involved.
+
 ## Overview
 
 Domain expertise for Huawei Cloud API Gateway (APIG). Covers instance lifecycle, API group/API creation, publishing, and FunctionGraph trigger integration.

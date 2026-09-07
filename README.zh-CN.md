@@ -3,12 +3,19 @@
 [![参与讨论](https://img.shields.io/badge/参与讨论-Join%20the%20discussion-blue)](https://github.com/huaweicloud/huaweicloud-devkit/discussions)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![CI](https://github.com/huaweicloud/huaweicloud-devkit/actions/workflows/ci.yml/badge.svg)](https://github.com/huaweicloud/huaweicloud-devkit/actions/workflows/ci.yml)
+[![Beta](https://img.shields.io/badge/beta-v1.1.0-orange)](https://github.com/huaweicloud/huaweicloud-devkit)
 
 **中文 | [English](README.md)**
 
 帮助 AI 编码助手安全、准确地使用华为云——一站式集成云知识、CLI 工具和安全护栏。
 
 支持 OpenCode、Codex、码道（CodeArts Agent）、WorkBuddy、DeepSeek Harness（DSH）、OfficeAce、Hermes、OpenClaw、AtomCode。
+
+## Cursor Directory 插件
+
+本仓库同时作为 [Open Plugins](https://open-plugins.com) 包挂载到 [Cursor Directory](https://cursor.directory) 市场。根目录的 `plugin.json`、`mcp.json`、`skills/`、`rules/` 仅用于 Cursor Directory 的仓库扫描发现，**不会**打入 npm 包（`package.json` 的 `files` 白名单未包含它们）。npm 包的 manifests 位于 `plugins/huaweicloud-core/`。
+
+`mcp.json` 中的 MCP 服务通过 `npx -y -p huaweicloud-devkit huaweicloud-devkit-mcp` 启动，跟踪的是 npm 的 `latest` tag。预发布阶段可能与 manifest 中的 `version` 不一致，稳定发版后可以固定版本。
 
 ## 前置条件
 
@@ -25,6 +32,11 @@
 ## 快速开始
 
 > 省略 `--target` 时，安装器会自动检测机器上的 agent，检测到多个时**全部安装**。建议始终指定 `--target` 以明确安装目标。
+
+```bash
+npx --yes huaweicloud-devkit version  # 查看各 agent 已安装的插件版本
+npx --yes huaweicloud-devkit uninstall --target all --clean-global  # 一并删除 KooCLI 与 OBS 配置
+```
 
 ### OpenCode
 

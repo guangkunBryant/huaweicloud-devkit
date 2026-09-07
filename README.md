@@ -11,6 +11,12 @@ Help AI coding agents use Huawei Cloud safely and accurately — a single integr
 
 Supports OpenCode, Codex, CodeArts Agent, WorkBuddy, DeepSeek Harness (DSH), OfficeAce, Hermes, OpenClaw, and AtomCode.
 
+## Cursor Directory Plugin
+
+This repository also acts as an [Open Plugins](https://open-plugins.com) package for the [Cursor Directory](https://cursor.directory) marketplace. The root-level `plugin.json`, `mcp.json`, `skills/`, and `rules/` files are used **only** for Cursor Directory repository-scan discovery and are **not** shipped in the npm tarball (the `package.json` `files` whitelist excludes them). The npm package's manifests live under `plugins/huaweicloud-core/`.
+
+The `mcp.json` MCP server launches via `npx -y -p huaweicloud-devkit huaweicloud-devkit-mcp`, which tracks the npm `latest` tag. During pre-release this may differ from the manifest `version`; it can be pinned after a stable release.
+
 ## Prerequisites
 
 - Node.js >= 22
@@ -26,6 +32,11 @@ Supports OpenCode, Codex, CodeArts Agent, WorkBuddy, DeepSeek Harness (DSH), Off
 ## Quick Start
 
 > If `--target` is omitted, the installer auto-detects agents on your machine. When multiple agents are detected, **all of them** will be installed. Specify `--target` to control which agent receives the install.
+
+```bash
+npx --yes huaweicloud-devkit version  # print the installed plugin version per agent
+npx --yes huaweicloud-devkit uninstall --target all --clean-global  # also remove KooCLI + OBS config
+```
 
 ### OpenCode
 

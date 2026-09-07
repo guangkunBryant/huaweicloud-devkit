@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -132,6 +132,107 @@ test('uninstall cleans up all platform directories', () => {
     runCli(home, cwd, ['install', '--target', 'opencode']);
     assert.equal(runCli(home, cwd, ['uninstall', '--target', 'opencode']).status, 0);
     assert.ok(!existsSync(join(home, '.config', 'opencode', 'huaweicloud-plugins')));
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('version reports installed plugin version per agent', () => {
+  const home = mkdtempSync(join(tmpdir(), 'cp-verinst-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'cp-proj-'));
+  try {
+    assert.equal(runCli(home, cwd, ['install', '--target', 'opencode']).status, 0);
+    const res = runCli(home, cwd, ['version']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /OpenCode: \d+\.\d+\.\d+/);
+    assert.doesNotMatch(res.stdout, /not installed/);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('single-agent uninstall hints about global cleanup', () => {
+  const home = mkdtempSync(join(tmpdir(), 'cp-uninst-hint-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'cp-proj-'));
+  try {
+    assert.equal(runCli(home, cwd, ['install', '--target', 'opencode']).status, 0);
+    const res = runCli(home, cwd, ['uninstall', '--target', 'opencode']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /如需清理全局配置/);
+    assert.match(res.stdout, /uninstall --target all/);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('uninstall --target all (non-TTY) keeps KooCLI/OBS but removes the vault', () => {
+  const home = mkdtempSync(join(tmpdir(), 'cp-uninst-all-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'cp-proj-'));
+  try {
+    assert.equal(runCli(home, cwd, ['install', '--target', 'opencode']).status, 0);
+
+    // Simulate account-level artifacts that `auth init` would have written.
+    const vault = join(home, '.config', 'huaweicloud', 'credentials.json');
+    mkdirSync(join(home, '.config', 'huaweicloud'), { recursive: true });
+    writeFileSync(vault, '{}');
+    const obsFile = join(home, '.obsutilconfig');
+    writeFileSync(obsFile, 'ak=x\nsk=y\n');
+    const kocliBin = join(home, '.local', 'bin', 'hcloud');
+    mkdirSync(join(home, '.local', 'bin'), { recursive: true });
+    writeFileSync(kocliBin, '#!/bin/sh\n');
+
+    const res = runCli(home, cwd, ['uninstall', '--target', 'all']);
+    assert.equal(res.status, 0, res.stderr);
+
+    assert.ok(!existsSync(vault), 'vault should be removed on --target all');
+    assert.ok(existsSync(obsFile), 'OBS config must be kept without a flag in non-TTY');
+    assert.ok(existsSync(kocliBin), 'KooCLI must be kept without a flag in non-TTY');
+    assert.match(res.stdout, /已保留 KooCLI 与 OBS 配置/);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('auth reconcile dispatches to cmdAuthReconcile (no inconsistencies in clean home)', () => {
+  const home = mkdtempSync(join(tmpdir(), 'cp-reconcile-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'cp-proj-'));
+  try {
+    const res = runCli(home, cwd, ['auth', 'reconcile']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /All credential files are consistent/);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('uninstall --target all --clean-global removes KooCLI and OBS config', () => {
+  const home = mkdtempSync(join(tmpdir(), 'cp-uninst-clean-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'cp-proj-'));
+  try {
+    assert.equal(runCli(home, cwd, ['install', '--target', 'opencode']).status, 0);
+
+    const vault = join(home, '.config', 'huaweicloud', 'credentials.json');
+    mkdirSync(join(home, '.config', 'huaweicloud'), { recursive: true });
+    writeFileSync(vault, '{}');
+    const obsFile = join(home, '.obsutilconfig');
+    writeFileSync(obsFile, 'ak=x\nsk=y\n');
+    const kocliBin = join(home, '.local', 'bin', 'hcloud');
+    mkdirSync(join(home, '.local', 'bin'), { recursive: true });
+    writeFileSync(kocliBin, '#!/bin/sh\n');
+
+    const res = runCli(home, cwd, ['uninstall', '--target', 'all', '--clean-global']);
+    assert.equal(res.status, 0, res.stderr);
+
+    assert.ok(!existsSync(vault), 'vault should be removed on --target all');
+    assert.ok(!existsSync(obsFile), 'OBS config should be removed with --clean-global');
+    assert.ok(!existsSync(kocliBin), 'KooCLI should be removed with --clean-global');
+    assert.match(res.stdout, /KooCLI removed/);
+    assert.match(res.stdout, /OBS config removed/);
   } finally {
     rmSync(home, { recursive: true, force: true });
     rmSync(cwd, { recursive: true, force: true });

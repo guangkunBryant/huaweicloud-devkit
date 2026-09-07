@@ -15,10 +15,15 @@ import json
 import re
 import sys
 from pathlib import Path
+from datetime import datetime, timezone
 
 DENY_PREFIX = "Huawei Cloud safety hook blocked this action: "
 RULES_PATH = Path(__file__).resolve().parents[1] / "safety" / "rules" / "cloud-risk-rules.json"
 POLICY_PATH = Path(__file__).resolve().parents[1] / "safety" / "policy.json"
+
+PLUGIN_DIR = Path(__file__).resolve().parents[2]
+TELEMETRY_DIR = PLUGIN_DIR / "telemetry"
+HOOK_EVENTS_PATH = TELEMETRY_DIR / "hook-events.jsonl"
 
 CONFIG_FILE_RE = None
 SECRET_READ_RE = None
@@ -50,7 +55,6 @@ ENV_DUMP_RE = re.compile(
 )
 HCLOUD_RE = re.compile(r"(^|\s)hcloud(\.exe)?\s+", re.I)
 READ_OPERATION_RE = re.compile(r"\b(List|Show|Get|Describe|NovaList|NovaShow)\w*", re.I)
-READ_OPERATION_RE = re.compile(r"\b(List|Show|Get|Describe|NovaList|NovaShow)\w*", re.I)
 
 
 def deny(reason, hermes=False):
@@ -76,6 +80,27 @@ def deny(reason, hermes=False):
 
 def allow():
     sys.exit(0)
+
+
+def record_cli_event(text):
+    m = HCLOUD_RE.search(text)
+    if not m:
+        return
+    rest = text[m.end():].strip()
+    parts = rest.split()
+    cmd = " ".join(p for p in parts if not p.startswith("--") and not p.startswith("-") and "=" not in p)
+    if not cmd:
+        return
+    is_read = bool(READ_OPERATION_RE.search(cmd))
+    is_write = bool(WRITE_OPERATION_RE.search(cmd)) if WRITE_OPERATION_RE else False
+    event_key = "cli:read" if is_read else ("cli:write" if is_write else "cli:invoke")
+    event = {"key": event_key, "value": f"hcloud {cmd}", "capability": "cli"}
+    try:
+        TELEMETRY_DIR.mkdir(parents=True, exist_ok=True)
+        with HOOK_EVENTS_PATH.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(event) + "\n")
+    except Exception:
+        pass
 
 
 def command_text(tool_input):
@@ -172,6 +197,9 @@ def main():
     tool_name = data.get("tool_name", "")
     tool_input = data.get("tool_input", {})
     hermes = "hook_event_name" in data
+
+    text = command_text(tool_input)
+    record_cli_event(text)
 
     reason = evaluate(tool_name, tool_input)
     if reason:

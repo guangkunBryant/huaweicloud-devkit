@@ -1,26 +1,160 @@
 # Changelog
 
-## 1.1.0 (2026-09-01)
+## 1.1.1-next.16 (2026-09-07)
 
-- chore: merge dev into main for 1.1.0 release (#438)
-- chore: version override for 1.1.0 stable release (#433)
-- docs: add Huawei Cloud npm mirror recommendation for China users
-- chore(release): 1.0.2
-- style: prettier format fix
-- feat: v1.0.2 stable - merge all dev changes
-- fix(release): update release trigger to workflow_dispatch and main push only
-- feat(release): sync release workflow to main, seed manifest with 1.0.1
-- fix(release): retire the live Publish Dev workflow on main
-- fix(release): restore full publish flow with quoted step names
-- fix(release): probe publish job with environment only
-- fix(release): probe without job outputs and needs.outputs wiring
-- fix(release): restore full tag-gated publish logic
-- fix(release): reduce npm-publish workflow to minimal probe
-- fix(release): drop workflow_dispatch inputs, derive dist-tag from the tag version
-- fix(release): rename publish workflow to npm-publish to recover a fresh workflow_dispatch index
-- fix(release): add pack-verify script to main
-- fix(release): sync ci.yml with pack verification to main
-- fix(release): add tag-gated Publish workflow to main so workflow_dispatch works from tags
+- fix(skills): deposit prompt cites official FAQ links (frozen deposit explanation + amount rules)
+- style: prettier re-align huawei-iac stage-5 table
+- fix(skills): deposit prompt includes recharge portal link (balanceRecharge)
+- fix(skills): deposit prompt includes amount range (约 1~5 元人民币不等)
+- chore(skills): bootstrap Node template bumped to v22.14.0 LTS
+- fix(skills): bootstrap Node template must match instance arch (arm64 vs x64)
+- fix(safety+skills): web-port rule false-positive, China mirrors, keypair import flow, E2E report findings
+- fix(skills): huawei-iac stage order - inspect code before offering options; scale and hosting are separate questions
+- fix(skills): huawei-iac stage-3 architecture decision points must be surfaced
+- fix: repair Python hook indentation and update stale DSH/telemetry tests
+- fix(telemetry): unref flush interval so tests don't hang the process
+- fix(workbuddy): remove hooks field from plugin manifest to pass validate
+- fix: resolve eslint and prettier errors reported by PR #500 CI
+- feat(telemetry): encode install dir into harness fallback for unknown agents
+- fix(openclaw): match openclaw via install path and native mcp config
+- fix(package): include integrations/atomcode in npm pack
+- feat(atomcode): add telemetry hook for Skill/CLI/MCP tracking
+- feat: expand agent registry from 13 to 23 agents
+- refactor: agent detection to table-driven registry pattern
+- fix: add OfficeAce harness detection and version identification
+- fix: restrict MCP keepalive to Hermes-on-Windows only, exit on stdin close for other agents
+- fixE: include integrations/hermes in npm publish files
+- feat(telemetry): fix harness/agentVersion detection and move telemetry hook to integrations
+- fix: add integrations/workbuddy to npm files list
+- feat(workbuddy): integrate telemetry hook deployment into setup-cli.mjs
+- refactor(skill-tracker): remove CLI wrapper file, use single function-as-object pattern
+- fix(skill-tracker): prevent duplicate hook capture in IDE mode
+- fix(skill-tracker): restore CLI entry wrapper file and setup-cli install logic
+- chore: fix Unicode arrow encoding in skill-tracker comments
+- refactor(skill-tracker): merge into single file using function-as-object pattern
+- refactor(skill-tracker): unify IDE and CLI hook plugins into shared core
+- fix(telemetry): prevent duplicate DAU events on same-day process restart
+- fix(setup): preserve user-customized MCP args and env during CodeArts register
+- fix(telemetry): simplify checkDauPing to handle stamp deletion edge case
+- refactor(telemetry): defer install stamp write to successful event delivery and remove trackInstall from setup CLI
+- feat(dsh): add Cordis hook plugin for telemetry interception
+- revert(dsh): remove skill tracking from Python hook and hooks copying
+- feat(telemetry): add skill retrieve tracking to Python hook
+- fix(telemetry): remove duplicate ideVersion declaration
+- feat(telemetry): detect DSH version from npm global package
+- revert(dsh): remove endpoint env var reading from dshPatchBlock
+- fix(dsh): support --hdkitservice-endpoint and --telemetry-endpoint CLI args
+- feat(dsh): install skill-tracker.js hook for DSH agent
+- fix(telemetry): use URL.pathname instead of fileURLToPath for path detection
+- fix(telemetry): use file path to detect harness, remove vscode fallback
+- fix(telemetry): fix harness and version detection priority
+- fix(telemetry): PLUGIN_VERSION reads undefined PLUGIN_DIR
+- refactor(telemetry): move agent-specific data into agent install directories
+- fix(telemetry): fix agent_version reporting wrong IDE version
+- fix(telemetry): use import.meta.url to detect agent harness in hook
+- fix(telemetry): detect agent harness by env vars only, remove disk-based check
+- fix: skill-tracker detectHarness 新增 .codeartsdoer 目录检测，解决 plugin 加载早于 MCP 导致检测为 unknown
+- refactor: dau-stamp/first-use-stamp/hook-events/dev-log 全部下沉到 agent 子目录
+- fix: flushEvents 中残留的 INSTALL_STAMP 引用导致 ReferenceError，事件每 60s 重试
+- fix: ensureDir 支持创建 agent 子目录，writeTextFile/touchFile 自动创建父目录
+- refactor: install-stamp/counter 改用 agent 子目录隔离
+- refactor: install-stamp/counter 改为按 agent 隔离，支持多 agent 独立安装上报
+- fix: 各 install 函数调用 trackInstall() 确保 plugin:install 事件在每次安装后触发
+- feat: 完善 CodeArts 遥测支持 — skill/CLI 事件捕获与安装脚本同步
+- fix(telemetry): restore writeEvent function accidentally removed in skill filter commit
+- fix(telemetry): filter non-Huawei Cloud skills from skill:retrieve events
+- fix(telemetry): extract DAU check to standalone function, call from 60s timer to ensure cross-day reporting when idle
+- fix(telemetry): anchor hcloud regex to command start to avoid false positives in quoted strings
+- chore: add startopencode.bat to .gitignore
+- chore: remove sync-opencode.ps1 from remote, add to .gitignore
+- refactor(telemetry): rewrite skill-tracker hook for 3-channel coverage, fix input.tool_name bug, clean up orphaned files
+- feat(telemetry): add event telemetry system with install counter and crash safety
+
+## 1.1.1-next.15 (2026-09-07)
+
+- feat(auth): 凭证一致化整改 — reconcile / R7 current档 / R9 会话优先 / R10 runtime守卫 (#498)
+
+## 1.1.1-next.14 (2026-09-05)
+
+- feat: detect new plugin versions on install/update
+
+## 1.1.1-next.13 (2026-09-05)
+
+- feat(uninstall): optional KooCLI/OBS cleanup on global uninstall
+- feat: add `version` command reporting installed plugin version per agent
+- feat(skills): add huawei-iac orchestration skill for multi-resource provisioning
+
+## 1.1.1-next.12 (2026-09-04)
+
+- fix: repair DSH bundle patch loading and MCP path resolution
+
+## 1.1.1-next.11 (2026-09-04)
+
+- style: wrap over-width line in validate-package.mjs
+- fix: publish cordis.patch.yml referenced by dsh.bundle.patch
+
+## 1.1.1-next.10 (2026-09-04)
+
+- chore: retry CI (#479)
+- chore: retry CI (#479)
+- chore: retry CI (#479)
+- fix(auth): prefer auth-init creds over injected STS env creds (#479)
+- fix: skip npm audit/fund when installing plugin runtime deps
+- test: scope node --test to actual test files
+
+## 1.1.1-next.9 (2026-09-04)
+
+- feat: add DSH post-install guidance for KooCLI and credentials setup
+- fix(dsh): maintain existing state after legacy block cleanup
+- fix: move createRequire after all imports, remove shebang, format
+- refactor: remove better-sqlite3, auto-setup DSH via bundle patch
+
+## 1.1.1-next.8 (2026-09-03)
+
+- feat: 安装提示补充由 AI 助手转达代金券的指令
+
+## 1.1.1-next.7 (2026-09-03)
+
+- feat: 安装完成提示首次使用可领取华为云代金券
+- docs(sandbox): find real build output dir across the whole project (#247)
+
+## 1.1.1-next.6 (2026-09-02)
+
+- Revert "fix(ecs): change preflight SG check from hard-deny to require_user_confirmation (#468)" (#470)
+
+## 1.1.1-next.5 (2026-09-02)
+
+- fix(ecs): change preflight SG check from hard-deny to require_user_confirmation (#468)
+- chore: add dsh.bundle manifest for DSH plugin ecosystem
+
+## 1.1.1-next.4 (2026-09-02)
+
+- fix(ecs): fix preflightSecurityGroupCheck regex and query parameter format (#443) (#464)
+
+## 1.1.1-next.3 (2026-09-02)
+
+- feat(ecs): auto-check security group rules during plan phase (#443) (#462)
+- fix: use CodeArts Work native MCP format (mcp key, command array, environment) (#461)
+
+## 1.1.1-next.2 (2026-09-02)
+
+- docs: voucher_status 工具描述内嵌主动提示行为指令
+- fix(detect): handle unquoted outDir in VitePress config
+- fix(sandbox): clean URL support for static nginx + cross-arch build guidance
+- fix(release): use JS filter instead of shell glob for tag lookup
+
+## 1.1.1-next.1 (2026-09-02)
+
+- docs: 强化 huawei-voucher skill 主动提示准则与话术
+
+## 1.1.1-next.0 (2026-09-02)
+
+- chore: set version override to 1.1.1 for next preview release
+- fix(sandbox): credential injection, nginx cleanup, and auto git clone
+- fix(ecs): add security group reuse warning to Critical Warnings (#444)
+- docs: add beta badge to Chinese README (#442)
+- fix: include atomcode in skills root and report openclaw auth status
+- docs: update beta badge version to v1.1.0 (#431)
 
 ## 1.1.0-next.21 (2026-09-01)
 

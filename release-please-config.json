@@ -14,6 +14,7 @@
     ".": {
       "package-name": "huaweicloud-devkit",
       "extra-files": [
+        "plugin.json",
         "plugins/huaweicloud-core/.codex-plugin/plugin.json",
         "plugins/huaweicloud-core/.claude-plugin/plugin.json",
         "plugins/huaweicloud-core/.cursor-plugin/plugin.json",

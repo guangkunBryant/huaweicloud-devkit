@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,6 +39,20 @@ for (const file of requiredFiles) {
   assert.ok(paths.has(file), `Tarball is missing ${file}`);
 }
 
+const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+const dshPatch = pkg.dsh?.bundle?.patch;
+if (dshPatch) {
+  const patchFile = dshPatch.replace(/^\.\//, '');
+  assert.ok(
+    paths.has(patchFile),
+    `Tarball is missing dsh.bundle.patch (${dshPatch}) — add it to the package.json "files" whitelist`,
+  );
+  assert.ok(
+    Array.isArray(pkg.files) && pkg.files.some((entry) => patchFile === entry || patchFile.startsWith(`${entry}/`)),
+    `dsh.bundle.patch (${dshPatch}) is not covered by the package.json "files" whitelist`,
+  );
+}
+
 const tarballPath = join(root, filename);
 assert.ok(existsSync(tarballPath), 'Tarball was not created');
 
@@ -52,6 +66,12 @@ try {
     existsSync(join(installed, 'plugins', 'huaweicloud-core', 'skills', 'huaweicloud-core', 'SKILL.md')),
     'Installed package is missing the core skill',
   );
+  if (dshPatch) {
+    assert.ok(
+      existsSync(join(installed, dshPatch.replace(/^\.\//, ''))),
+      `Installed package is missing dsh.bundle.patch (${dshPatch})`,
+    );
+  }
 } finally {
   rmSync(installDir, { recursive: true, force: true });
   rmSync(tarballPath, { force: true });

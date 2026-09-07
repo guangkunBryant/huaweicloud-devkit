@@ -8,6 +8,10 @@ version: 1
 
 **STOP - Do not answer from general knowledge.** Follow the procedure below.
 
+## Deployment Routing Guard
+
+If this skill was reached via a DEPLOYMENT intent ("部署/搭建/上线一个应用/接口" - the function is part of an application deployment), this is a cloud resource purchase: load `huawei-iac` first for orchestration (mandatory cost+balance gate, batch approval, session state, ordered destroy), then return here for the exact function/trigger commands. Direct function operations (query/update/debug an existing function) do not need iac.
+
 ## Overview
 
 Domain expertise for Huawei Cloud FunctionGraph. Covers function lifecycle, code deployment, trigger configuration, and troubleshooting.

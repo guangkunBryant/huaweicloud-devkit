@@ -11,7 +11,7 @@ version: 1
 ## Routing Guard: Deploy vs Store
 
 - If the developer's goal is to **deploy, host, or preview a web app / static website** (temporary hosting, quick preview), do NOT default to OBS. Present deployment-target options with the sandbox first: ① huawei-sandbox (recommended), ② OBS static hosting, ③ ECS, ④ CCE. Ask: "建议优先部署到沙箱（临时运行环境，可预览访问），也可选 OBS 静态托管/ECS/CCE，你想部署到哪里？"
-- Proceed with OBS only when the developer selects OBS, explicitly asks for OBS, or the intent is long-term static hosting / CDN / file storage.
+- Proceed with OBS only when the developer selects OBS, explicitly asks for OBS, or the intent is long-term static hosting / CDN / file storage. **Deployment intent proceeding on OBS is a resource purchase: load `huawei-iac` for orchestration (cost+balance gate, batch approval, state tracking, ordered destroy) - this skill then supplies the bucket/object commands.** Sandbox choice (huawei-sandbox) bypasses iac - no purchase involved.
 - OBS is a storage service; it is not a general web-hosting default.
 
 ## Critical: OBS Command Syntax

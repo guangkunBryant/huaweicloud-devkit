@@ -24,17 +24,18 @@ Before creating an ECS instance from scratch, you MUST have:
 - A subnet with DNS configured (see `huawei-vpc`)
 - A security group with application ports open (see `huawei-vpc`)
 
-If these do not exist, load the `huawei-vpc` skill first and create them before returning here.
+**Deployment routing guard**: if this skill was reached via a DEPLOYMENT intent (creating resources to host an application), load the `huawei-iac` skill FIRST and follow its orchestration flow - UNCONDITIONALLY. Reusing an existing VPC does NOT make it single-resource: the purchase still involves billable resources (ECS, system disk, EIP, keypair, SG rules) that must pass the cost+balance gate, batch approval, and state tracking. Only create directly here if the user explicitly declines the orchestration flow or the user only wants a lifecycle operation on an EXISTING instance (query/reboot/resize/delete). Discovery already done (flavors, images, AZs) carries over.
 
 ## Critical Warnings
 
-| Trap                          | Why                                                                         |
-| ----------------------------- | --------------------------------------------------------------------------- |
-| Flavor not in region          | Not all flavors available everywhere. Check with ECS ListFlavors first      |
-| Security group denies all     | New SGs deny ALL inbound. Must explicitly add rules                         |
-| EIP bills when idle           | Unattached EIP still incurs charges                                         |
-| Stopped instance still bills  | Pay-per-use instances bill when stopped (unless shutdown-no-billing flavor) |
-| Disk survives instance delete | Deleting instance does NOT delete system disk by default                    |
+| Trap                            | Why                                                                                                                                                |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Flavor not in region            | Not all flavors available everywhere. Check with ECS ListFlavors first                                                                             |
+| Security group denies all       | New SGs deny ALL inbound. Must explicitly add rules                                                                                                |
+| Reusing existing security group | Existing SGs may have 0.0.0.0/0 rules. Before referencing, run hcloud VPC ListSecurityGroupRules --security_group_id.1=<id> to audit inbound rules |
+| EIP bills when idle             | Unattached EIP still incurs charges                                                                                                                |
+| Stopped instance still bills    | Pay-per-use instances bill when stopped (unless shutdown-no-billing flavor)                                                                        |
+| Disk survives instance delete   | Deleting instance does NOT delete system disk by default                                                                                           |
 
 ## Flavor Selection Guide
 
