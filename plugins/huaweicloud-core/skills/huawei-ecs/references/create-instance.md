@@ -36,8 +36,17 @@ If no VPC/subnet exists: load `huawei-vpc` skill → create VPC → create subne
 
 ## 5. Create keypair (recommended over adminPass)
 
-hcloud ECS NovaCreateKeypair --keypair.name=<name>
-Save the returned private key to a local file. The public key is auto-injected.
+**MCP 环境下必须用"本地生成 + 导入"流程**——`NovaCreateKeypair` 返回的 `private_key` 会被 MCP 脱敏管道替换为 `<redacted>`，而私钥仅此一次机会，读不到即作废：
+
+```bash
+# 1. 本地生成
+ssh-keygen -t rsa -b 2048 -f ./<name> -N '""'
+# 2. 导入公钥
+hcloud ECS NovaCreateKeypair --keypair.name=<name> --keypair.public_key=<本地 .pub 文件内容>
+# 3. 使用私钥文件 ./<name> 连接实例
+```
+
+> **陷阱**：删除密钥对的参数是 `--keypair_name=<name>`（path 风格），不是 `--keypair.name=<name>`（body 风格），混用报 USE_ERROR。
 
 Password alternative:
 
@@ -52,6 +61,37 @@ hcloud ECS CreateServers --cli-region=<region> --server.name=<name> --server.fla
 ### Bootstrap with user_data (cloud-init)
 
 Use `--server.user_data` to run a cloud-init script at first boot. The value must be **base64-encoded**. This is also the recommended bootstrap path when SCP policies block SSH access — user_data serves as the full deployment path, no SSH needed.
+
+**中国区镜像源强制规则**（实测：`deb.nodesource.com` 从北京四不可达，cloud-init 全链失败）：
+
+```bash
+#!/bin/bash
+set -eux
+# Node: 用华为云镜像二进制直装，固定小版本，禁用 NodeSource/curl Nodesource 脚本
+# ⚠️ ARCH 必须与实例架构一致：kc1/kc2 等鲲鹏 = arm64；s6/s7/c7 等 x86 = x64
+NODE_VERSION=v22.14.0
+ARCH=arm64   # x86 实例改为 x64
+curl -fsSL "https://mirrors.huaweicloud.com/nodejs/${NODE_VERSION}/node-${NODE_VERSION}-linux-${ARCH}.tar.xz" -o /tmp/node.tar.xz
+mkdir -p /usr/local/lib/nodejs && tar -xJf /tmp/node.tar.xz -C /usr/local/lib/nodejs
+export PATH=/usr/local/lib/nodejs/node-${NODE_VERSION}-linux-${ARCH}/bin:$PATH
+ln -sf /usr/local/lib/nodejs/node-${NODE_VERSION}-linux-${ARCH}/bin/{node,npm,npx} /usr/local/bin/
+# npm registry 指向华为云
+npm config set registry https://repo.huaweicloud.com/repository/npm/
+# DNS 兜底（子网 dnsList 缺失时自救）
+grep -q 100.125.0.20 /etc/resolv.conf || echo "nameserver 100.125.0.20" >> /etc/resolv.conf
+```
+
+**可观测性模板**（实测教训：cloud-init 失败后无感知、固定 sleep 空等 ≈8 分钟）：
+
+```bash
+# 每阶段落 sentinel，收尾打标记；agent 侧轮询标记而非固定 sleep
+touch /var/log/kit-step1-deps-done
+# ... 构建完成后：
+touch /var/log/kit-deploy-done   # ← agent 轮询此文件出现即成功
+# 失败时：cloud-init status --long + /var/log/cloud-init-output.log 定位
+```
+
+> **SSR/Next.js 项目强烈推荐"本地构建 + 上传产物"**（next standalone / `.next` + node_modules），服务器零构建可省 ~20 分钟且绕开服务器侧依赖解析风险。必须服务器构建时：先本地 `npm install` 验证 lockfile 再上传；已知坏组合黑名单——`isomorphic-dompurify@^2` 场景加 `overrides: {"html-encoding-sniffer":"4.0.0","jsdom":"25.0.1"}`（最新 jsdom→cssstyle→@csstools 链全 ESM-only，Next 14 构建期 CJS require 必挂，首个 `ERR_REQUIRE_ESM` 即跑 `npm ls <包>` 查依赖树，不要盲目重装）。
 
 ```bash
 # Encode the script

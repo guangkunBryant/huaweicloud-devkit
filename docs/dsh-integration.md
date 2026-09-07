@@ -36,7 +36,7 @@ The installer owns only the block between these markers:
 ```yaml
 # HuaweiCloud DevKit DSH integration start
 - insert:
-    - id: mcp-huaweicloud
+    - id: huaweicloud-devkit
       name: '@deepseek-ai/dsh-mcp-client'
       config:
         serverName: huaweicloud

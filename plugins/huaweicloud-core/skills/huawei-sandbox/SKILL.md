@@ -95,7 +95,7 @@ Setup is a **plugin-side preflight** — the developer should be asked a questio
 2. **Real-name verification only** (`HDKIT_NOT_REALNAME`): tell the developer once, "Huawei Cloud requires real-name verification before using the sandbox — please complete it in the Huawei Cloud console (实名认证)." and stop — do not retry `connect` in a loop
 3. **Sign agreement only** (`HDKIT_NOT_AGREEMENT`): **STOP and do NOT sign on your own.** Ask the developer: "Huawei Cloud sandbox requires signing the latest developer service agreement. May I sign it for you?" Then **wait for the developer to explicitly agree** (e.g. "签署" / "确认" / "sign it"). Only after explicit consent call `huaweicloud_sandbox_sign_agreement` and return its result (`signed`/`signedCount`) to the developer. **Never sign a legal agreement on the developer's behalf without their explicit, unambiguous consent.** Do not expose the underlying sandbox/DevBridge service as a separate entity the developer must understand or sign up for
 4. **Both missing** (`HDKIT_NOT_REALNAME_AND_AGREEMENT`): present **both** requirements together in one message — the real-name verification steps (console, step 2) **and** the agreement-signing request (step 3, wait for explicit consent) — so the developer can complete both at once
-5. **Connect**: `huaweicloud_sandbox_connect` — returns `session_id`, `dev_stage_id`, `connection_id`, `connection_address`. The `source` parameter identifies the calling agent (valid values: `CLI`, `WEB`, `VSCODE`, `WEBVNC`, `WEBPTY`, `WEBIDE`, `CURSOR`, etc. — case-sensitive, all uppercase). The `git` parameter (with `repo_url`, `repo_name`, `target_path`) is accepted but does NOT auto-clone the repository — always clone manually.
+5. **Connect**: `huaweicloud_sandbox_connect` — returns `session_id`, `dev_stage_id`, `connection_id`, `connection_address`. The `source` parameter identifies the calling agent (valid values: `CLI`, `WEB`, `VSCODE`, `WEBVNC`, `WEBPTY`, `WEBIDE`, `CURSOR`, etc. — case-sensitive, all uppercase). When the `git` parameter is provided (with `repo_url`, `target_path`, optional `repo_branch`), code is automatically transferred to the sandbox: local `git clone` followed by `uploadProject` (falls back to direct sandbox clone when local git is unavailable). Check `_repoStatus` in the response: `uploaded_from_local`, `cloned_in_sandbox`, or `already_exists` (reconnect).
 6. **Cleanup previous deployments** (after first connect to a sandbox): nginx configs, DevBridge tunnels, and stale web processes from previous deployments can cause port conflicts and quota errors. Run cleanup immediately after connect:
 
    ```bash
@@ -510,11 +510,11 @@ grep -r "outDir\|outputDir\|dest\|distDir" /workspace/<dirname>/.vitepress/confi
 
 If a custom outDir is found, use that instead of the framework-detected default for all subsequent checks.
 
-**Post-build output verification**: after a successful build, verify the actual `index.html` location. Framework-returned `outputDir` may be inaccurate (e.g., uni-app v3 framework: `dist`, actual: `dist/build/h5`):
+**Post-build output verification**: after a successful build, verify the actual `index.html` location. Framework-returned `outputDir` may be inaccurate — either a subdirectory (e.g., uni-app v3: `dist` → `dist/build/h5`) or a completely different top-level path (e.g., Vite `build.outDir` pointing to `portal/public`). Search the whole project (skipping `node_modules`), not just `<outputDir>`:
 
 ```bash
-# Find the real index.html after build
-REAL_INDEX=$(find /workspace/<dirname>/<outputDir> -name "index.html" -type f 2>/dev/null | head -1)
+# Find the real index.html after build (search whole project, not just the default outputDir)
+REAL_INDEX=$(find /workspace/<dirname> -path '*/node_modules' -prune -o -name index.html -type f -print 2>/dev/null | head -1)
 if [ -n "$REAL_INDEX" ] && [ -f "$REAL_INDEX" ]; then
   REAL_OUTDIR=$(dirname "$REAL_INDEX")
   echo "Actual output dir: $REAL_OUTDIR"

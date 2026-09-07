@@ -1,13 +1,18 @@
 {
   "name": "huaweicloud-devkit",
-  "version": "1.1.0",
+  "version": "1.1.1-next.16",
   "description": "Agent toolkit that helps coding agents use Huawei Cloud Skills, KooCLI, APIs, SDKs, and future MCP capabilities safely and accurately.",
   "type": "module",
   "files": [
+    "cordis.patch.yml",
     "bin",
     ".agents",
     "plugins/huaweicloud-core",
-    "integrations/opencode"
+    "integrations/hermes",
+    "integrations/opencode",
+    "integrations/dsh",
+    "integrations/workbuddy",
+    "integrations/atomcode"
   ],
   "bin": {
     "huaweicloud-devkit": "./bin/setup.cjs",
@@ -23,7 +28,7 @@
     }
   },
   "scripts": {
-    "test": "node --test",
+    "test": "node --test \"test/*.test.mjs\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#.git\" \"#test/**\" \"#docs/**\"",
@@ -31,10 +36,9 @@
     "lint": "npm run lint:md && npm run lint:js",
     "validate": "node ./scripts/validate-package.mjs",
     "pack:verify": "node ./scripts/pack-verify.mjs",
-    "postinstall": "node -e \"console.log('\\nHuaweiCloud DevKit installed. Run: npx huaweicloud-devkit install\\n')\""
+    "postinstall": "node ./bin/dsh-postinstall.cjs"
   },
   "dependencies": {
-    "better-sqlite3": "^13.0.3",
     "undici": "^8.10.0"
   },
   "devDependencies": {
@@ -59,6 +63,7 @@
     "officeace",
     "office-claw",
     "workbuddy",
+    "atomcode",
     "dsh",
     "deepseek-harness",
     "mcp",

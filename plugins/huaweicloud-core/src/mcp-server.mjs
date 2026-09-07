@@ -2,9 +2,40 @@
 import { stdin, stdout } from 'node:process';
 import { rmSync, existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
+import { platform } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import { TOOL_DEFINITIONS, callTool } from './tools.mjs';
+import { initTelemetry } from './telemetry/telemetry.mjs';
+import { detectAgent } from './telemetry/agent-detect.mjs';
+
+const projectDirIdx = process.argv.indexOf('--codearts-project-dir');
+if (projectDirIdx > -1 && process.argv[projectDirIdx + 1]) {
+  process.env.CODEARTS_PROJECT_DIR = process.argv[projectDirIdx + 1];
+}
+
+const endpointIdx = process.argv.indexOf('--hdkitservice-endpoint');
+if (endpointIdx > -1 && process.argv[endpointIdx + 1]) {
+  process.env.HDKITSERVICE_ENDPOINT = process.argv[endpointIdx + 1];
+}
+
+const telemetryEndpointIdx = process.argv.indexOf('--telemetry-endpoint');
+if (telemetryEndpointIdx > -1 && process.argv[telemetryEndpointIdx + 1]) {
+  process.env.HUAWEICLOUD_DEVKIT_TELEMETRY_ENDPOINT = process.argv[telemetryEndpointIdx + 1];
+}
+
+try {
+  const { readProxyConfig } = await import('./proxy/proxy-config.mjs');
+  const proxyConfig = readProxyConfig();
+  if (proxyConfig) {
+    if (proxyConfig.https_proxy || proxyConfig.HTTPS_PROXY) {
+      process.env.HTTPS_PROXY = process.env.HTTPS_PROXY || proxyConfig.https_proxy || proxyConfig.HTTPS_PROXY;
+    }
+    if (proxyConfig.http_proxy || proxyConfig.HTTP_PROXY) {
+      process.env.HTTP_PROXY = process.env.HTTP_PROXY || proxyConfig.http_proxy || proxyConfig.HTTP_PROXY;
+    }
+  }
+} catch {}
 
 const projectDirIdx = process.argv.indexOf('--codearts-project-dir');
 if (projectDirIdx > -1 && process.argv[projectDirIdx + 1]) {
@@ -54,12 +85,21 @@ let useContentLengthFraming = true;
 // the only handle. On Windows, Hermes may close the stdin pipe after the
 // initial handshake, causing the process to exit silently (exit 0).
 //
-// When stdin closes, start a keepalive timer. When stdout also closes (normal
-// shutdown signal from OfficeAce or other agents), clear the timer and exit.
+// For Hermes on Windows: start a keepalive timer on stdin close, and only exit
+// when stdout also closes.
+// For all other agents (OfficeAce, WorkBuddy, etc.): stdin close is the
+// shutdown signal — exit cleanly so the host does not see CLOSE_TIMEOUT.
+const { harness } = detectAgent();
+const NEEDS_KEEPALIVE = harness === 'hermes' && platform() === 'win32';
 let keepAlive = null;
 function onStdinClose() {
   if (keepAlive) return;
-  keepAlive = setInterval(() => {}, 60000);
+  if (NEEDS_KEEPALIVE) {
+    keepAlive = setInterval(() => {}, 60000);
+  } else {
+    // eslint-disable-next-line n/no-process-exit -- stdin close is the shutdown signal; exit now without waiting for stdout
+    process.exit(0);
+  }
 }
 function onStdoutClose() {
   if (keepAlive) {
@@ -139,6 +179,18 @@ async function handleMessage(message) {
 
 async function dispatch(method, params) {
   if (method === 'initialize') {
+    const ci = params.clientInfo || {};
+
+    try {
+      const { hdkitGenerateUserHash } = await import('./sandbox/hdkitservice-api.mjs');
+      await Promise.race([
+        hdkitGenerateUserHash(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
+      ]);
+    } catch {}
+
+    const agent = detectAgent(ci);
+    initTelemetry({ harness: agent.harness, version: agent.version });
     return {
       protocolVersion: params.protocolVersion || '2024-11-05',
       capabilities: {

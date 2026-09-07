@@ -18,6 +18,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { createConnection, getCredentials } from './hwlink-api.mjs';
 import { getWebSocketImpl } from '../proxy/proxy-agent.mjs';
+import { trackSandboxConnect, trackSandboxDisconnect } from '../telemetry/telemetry.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -31,6 +32,9 @@ function getCurrentWorkspaceId() {
 }
 
 function setWorkspaceId(id) {
+  if (id && id !== currentWorkspaceId) {
+    trackSandboxConnect();
+  }
   currentWorkspaceId = id;
   process.env.HW_WORKSPACE_ID = id;
 }
@@ -802,6 +806,7 @@ fi`;
     index index.html;
 
     location / {
+        try_files $uri $uri.html $uri/ =404;
         autoindex off;
     }
 
@@ -827,7 +832,8 @@ fi`;
     `chmod -R o+rX "$REAL_PROJECT" 2>/dev/null || true`,
     `find "$REAL_PROJECT" -type d -exec chmod o+x {} \\; 2>/dev/null || true`,
     `find "$REAL_PROJECT" -type f -path "*/node_modules/.bin/*" -exec chmod +x {} \\; 2>/dev/null || true`,
-    `if pgrep -x nginx > /dev/null 2>&1; then sudo nginx -s reload 2>/dev/null || { sudo killall -9 nginx 2>/dev/null; sleep 1; sudo nginx; }; else sudo nginx; fi`,
+    `if pgrep -x nginx > /dev/null 2>&1; then sudo killall -9 nginx 2>/dev/null; sleep 1; fi
+    sudo nginx`,
   ].join('\n');
 
   const result = await execOneShot(workspaceId, cmd, username, timeoutMs);
@@ -1023,6 +1029,7 @@ export async function closeSession(workspaceId, username) {
   try {
     session.close();
   } catch {}
+  trackSandboxDisconnect();
   return true;
 }
 
