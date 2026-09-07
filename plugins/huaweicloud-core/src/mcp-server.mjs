@@ -37,24 +37,6 @@ try {
   }
 } catch {}
 
-const projectDirIdx = process.argv.indexOf('--codearts-project-dir');
-if (projectDirIdx > -1 && process.argv[projectDirIdx + 1]) {
-  process.env.CODEARTS_PROJECT_DIR = process.argv[projectDirIdx + 1];
-}
-
-try {
-  const { readProxyConfig } = await import('./proxy/proxy-config.mjs');
-  const proxyConfig = readProxyConfig();
-  if (proxyConfig) {
-    if (proxyConfig.https_proxy || proxyConfig.HTTPS_PROXY) {
-      process.env.HTTPS_PROXY = process.env.HTTPS_PROXY || proxyConfig.https_proxy || proxyConfig.HTTPS_PROXY;
-    }
-    if (proxyConfig.http_proxy || proxyConfig.HTTP_PROXY) {
-      process.env.HTTP_PROXY = process.env.HTTP_PROXY || proxyConfig.http_proxy || proxyConfig.HTTP_PROXY;
-    }
-  }
-} catch {}
-
 // The MCP server is now loaded by a live agent session. Clear the install marker
 // in this plugin dir so `doctor` no longer reports "restart needed".
 try {
