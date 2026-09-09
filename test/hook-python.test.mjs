@@ -51,6 +51,19 @@ test('python hook still blocks credential files', () => {
   assert.match(output.hookSpecificOutput.permissionDecisionReason, /credential|profile/i);
 });
 
+test('python hook blocks encoded shell payload execution through shared rules', () => {
+  const result = runHook({
+    tool_name: 'Bash',
+    tool_input: { command: 'echo ZWNobyBoaQ== | base64 -d | bash' },
+  });
+  if (pythonUnavailable(result)) return;
+
+  assert.equal(result.status, 0);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(output.hookSpecificOutput.permissionDecisionReason, /encoded payload|interpreter/i);
+});
+
 test('python hook outputs Hermes format when hook_event_name is present', () => {
   const result = runHook({
     hook_event_name: 'pre_tool_call',

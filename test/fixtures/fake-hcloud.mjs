@@ -14,4 +14,8 @@ if (process.argv[2] === 'version') {
   console.log('KooCLI Fake 7.2.12');
   process.exit(0);
 }
+if (process.argv[2] === 'IAM' && process.argv[3] === 'KeystoneListProjects') {
+  console.log(JSON.stringify({ projects: [{ id: 'proj-e2e-001', name: 'cn-north-4' }] }));
+  process.exit(0);
+}
 process.exit(0);

@@ -1,8 +1,17 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
@@ -10,28 +19,72 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const setupCli = join(root, 'bin', 'setup.cjs');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
-function makeEnv(home) {
+function makeEnv(home, extra = {}) {
   const env = {
     ...process.env,
     USERPROFILE: home,
     HOME: home,
     HOMEDRIVE: home.slice(0, 2),
     HOMEPATH: home.slice(2),
+    HERMES_HOME: join(home, '.hermes'),
   };
   // Clear agent home overrides so installs land in the temp home, not the real one.
-  for (const key of ['ATOMCODE_HOME', 'DSH_HOME', 'HERMES_HOME', 'HUAWEICLOUD_HOME', 'OFFICE_CLAW_CONFIG_ROOT']) {
+  for (const key of ['ATOMCODE_HOME', 'DSH_HOME', 'HUAWEICLOUD_HOME', 'OFFICE_CLAW_CONFIG_ROOT']) {
     delete env[key];
   }
-  return env;
+  return { ...env, ...extra };
 }
 
-function run(target, home, cwd, cmd) {
+function run(target, home, cwd, cmd, extraEnv = {}) {
   return spawnSync(process.execPath, [setupCli, cmd, '--target', target], {
     cwd,
-    env: makeEnv(home),
+    env: makeEnv(home, extraEnv),
     encoding: 'utf8',
     timeout: 60000,
   });
+}
+
+function fakeCodexEnv(cwd, options = {}) {
+  const binDir = join(cwd, 'fake-bin');
+  mkdirSync(binDir, { recursive: true });
+  const logPath = join(cwd, 'codex.log');
+  const scriptPath = join(cwd, 'fake-codex.mjs');
+  writeFileSync(
+    scriptPath,
+    `
+import { appendFileSync } from 'node:fs';
+const args = process.argv.slice(2);
+appendFileSync(process.env.FAKE_CODEX_LOG, JSON.stringify(args) + '\\n');
+if (args[0] === '--version') {
+  console.log('codex 0.0.0');
+  process.exit(0);
+}
+if (args[0] === 'plugin' && args[1] === 'list') {
+  console.log(process.env.FAKE_CODEX_LIST_OUTPUT || '');
+  process.exit(0);
+}
+if (process.env.FAKE_CODEX_FAIL_PLUGIN_ADD === '1' && args[0] === 'plugin' && args[1] === 'add') {
+  console.error('fake plugin add failed');
+  process.exit(1);
+}
+process.exit(0);
+`,
+    'utf8',
+  );
+  const commandPath = join(binDir, process.platform === 'win32' ? 'codex.cmd' : 'codex');
+  if (process.platform === 'win32') {
+    writeFileSync(commandPath, `@echo off\r\n"${process.execPath}" "${scriptPath}" %*\r\n`, 'utf8');
+  } else {
+    writeFileSync(commandPath, `#!/usr/bin/env sh\n"${process.execPath}" "${scriptPath}" "$@"\n`, 'utf8');
+    chmodSync(commandPath, 0o755);
+  }
+  return {
+    PATH: `${binDir}${delimiter}${process.env.PATH || ''}`,
+    FAKE_CODEX_LOG: logPath,
+    ...(options.failPluginAdd ? { FAKE_CODEX_FAIL_PLUGIN_ADD: '1' } : {}),
+    ...(options.listOutput ? { FAKE_CODEX_LIST_OUTPUT: options.listOutput } : {}),
+    logPath,
+  };
 }
 
 function countSkills(dir) {
@@ -393,8 +446,85 @@ test('codex target does not crash without Codex CLI', () => {
   const home = mkdtempSync(join(tmpdir(), 'ai-home-'));
   const cwd = mkdtempSync(join(tmpdir(), 'ai-proj-'));
   try {
-    const res = run('codex', home, cwd, 'install');
+    const emptyPath = join(cwd, 'empty-path');
+    mkdirSync(emptyPath, { recursive: true });
+    const res = run('codex', home, cwd, 'install', { PATH: emptyPath });
+    assert.notEqual(res.status, 0);
     assert.match(res.stdout, /Codex CLI not found/);
+    assert.doesNotMatch(res.stdout, /Installation complete/);
+    assert.ok(!existsSync(join(home, '.config', 'opencode', 'huaweicloud-plugins', '.installed')));
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('codex install uses DevKit plugin id and skips OpenCode marker', () => {
+  const home = mkdtempSync(join(tmpdir(), 'ai-home-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'ai-proj-'));
+  try {
+    const env = fakeCodexEnv(cwd);
+    const res = run('codex', home, cwd, 'install', env);
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /@huaweicloud-devkit/);
+    assert.match(res.stdout, /Installation complete/);
+
+    const log = readFileSync(env.logPath, 'utf8');
+    assert.match(log, /"plugin","add","huaweicloud-devkit@huaweicloud-devkit"/);
+    assert.doesNotMatch(log, /huaweicloud-core@huaweicloud-devkit/);
+    assert.ok(!existsSync(join(home, '.config', 'opencode', 'huaweicloud-plugins', '.installed')));
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('codex install fails fast when plugin add fails', () => {
+  const home = mkdtempSync(join(tmpdir(), 'ai-home-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'ai-proj-'));
+  try {
+    const env = fakeCodexEnv(cwd, { failPluginAdd: true });
+    const res = run('codex', home, cwd, 'install', env);
+    assert.notEqual(res.status, 0);
+    assert.match(res.stdout, /Codex plugin installation failed/);
+    assert.match(res.stdout, /Installation failed for: codex/);
+    assert.doesNotMatch(res.stdout, /Installation complete/);
+    assert.ok(!existsSync(join(home, '.config', 'opencode', 'huaweicloud-plugins', '.installed')));
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('codex status recognizes current and legacy plugin names', () => {
+  for (const listOutput of ['huaweicloud-devkit@huaweicloud-devkit', 'huaweicloud-core@huaweicloud-devkit']) {
+    const home = mkdtempSync(join(tmpdir(), 'ai-home-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'ai-proj-'));
+    try {
+      const env = fakeCodexEnv(cwd, { listOutput });
+      const res = run('codex', home, cwd, 'status', env);
+      assert.equal(res.status, 0, res.stderr);
+      assert.match(res.stdout, /Plugin:.*Installed/);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
+test('codex uninstall removes current and legacy plugin ids', () => {
+  const home = mkdtempSync(join(tmpdir(), 'ai-home-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'ai-proj-'));
+  try {
+    const env = fakeCodexEnv(cwd);
+    const res = run('codex', home, cwd, 'uninstall', env);
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /Removing Codex plugin: huaweicloud-devkit@huaweicloud-devkit/);
+    assert.match(res.stdout, /Removing Codex plugin: huaweicloud-core@huaweicloud-devkit/);
+
+    const log = readFileSync(env.logPath, 'utf8');
+    assert.match(log, /"plugin","remove","huaweicloud-devkit@huaweicloud-devkit"/);
+    assert.match(log, /"plugin","remove","huaweicloud-core@huaweicloud-devkit"/);
   } finally {
     rmSync(home, { recursive: true, force: true });
     rmSync(cwd, { recursive: true, force: true });

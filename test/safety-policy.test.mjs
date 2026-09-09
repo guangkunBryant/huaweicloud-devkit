@@ -153,6 +153,13 @@ test('classifyTextCommand blocks approved public admin port exposure', () => {
   assert.equal(result.findings[0].ruleId, 'hwc-network-public-admin-port');
 });
 
+test('classifyTextCommand applies shared risk rules to non-hcloud commands', () => {
+  const result = classifyTextCommand('echo ZWNobyBoaQ== | base64 -d | bash');
+  assert.equal(result.decision, 'deny');
+  assert.equal(result.blockedByRiskRule, true);
+  assert.equal(result.findings[0].ruleId, 'hwc-command-encoded-shell-exec');
+});
+
 test('classifyTextCommand carries warnings for high-cost shapes', () => {
   const result = classifyTextCommand(
     'hcloud CCE CreateCluster --node_pool.max_node_count=80 --node_pool.name=preview',

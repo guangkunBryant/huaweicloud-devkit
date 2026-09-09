@@ -1,7 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { AGENTS } from '../plugins/huaweicloud-core/src/telemetry/agent-registry.mjs';
 import { detectAgentHarness } from '../plugins/huaweicloud-core/src/telemetry/agent-detect.mjs';
+
+const DETECTION_ENV_KEYS = ['AGENT_HARNESS', ...new Set(AGENTS.flatMap((agent) => agent.envVars || []))];
+
+function withNoAgentEnv(fn) {
+  const prev = Object.fromEntries(DETECTION_ENV_KEYS.map((key) => [key, process.env[key]]));
+  for (const key of DETECTION_ENV_KEYS) delete process.env[key];
+  try {
+    return fn();
+  } finally {
+    for (const [key, value] of Object.entries(prev)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
 
 test('detectAgentHarness returns known when no env set', () => {
   const result = detectAgentHarness();
@@ -31,7 +47,37 @@ test('detectAgentHarness detects opencode from env', () => {
 });
 
 test('detectAgentHarness returns null when nothing matches', () => {
-  assert.equal(detectAgentHarness(), null);
+  withNoAgentEnv(() => {
+    assert.equal(detectAgentHarness(), null);
+  });
+});
+
+test('detectAgentHarness classifies MCP client names to canonical harness', () => {
+  const keys = [
+    'OPENCODE_SESSION_ID',
+    'OPENCODE_CONFIG_PATH',
+    'CODEX_SESSION_ID',
+    'CODEX_CLI_VERSION',
+    'CODEX_SANDBOX',
+    'CODEX_THREAD_ID',
+    'OFFICEACE_SESSION_ID',
+    'OFFICE_CLAW_CONFIG_ROOT',
+    'OPENCLAW_SESSION_ID',
+    'OPENCLAW_CONFIG_ROOT',
+  ];
+  const saved = keys.map((k) => [k, process.env[k]]);
+  keys.forEach((k) => delete process.env[k]);
+  try {
+    assert.equal(detectAgentHarness({ name: 'codex-mcp-client' }), 'codex');
+    assert.equal(detectAgentHarness({ name: 'office-claw-mcp-connector-probe' }), 'officeace');
+    assert.equal(detectAgentHarness({ name: 'openclaw-bundle-mcp' }), 'openclaw');
+    assert.equal(detectAgentHarness({ name: 'opencode' }), 'opencode');
+  } finally {
+    for (const [k, v] of saved) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
 });
 
 test('generateOrRecoverInstallId returns consistent string', async () => {
@@ -75,6 +121,30 @@ test('trackSandboxConnect and trackSandboxDisconnect do not throw', async () => 
   initTelemetry({ harness: 'test', version: '1.0.0' });
   assert.doesNotThrow(() => trackSandboxConnect());
   assert.doesNotThrow(() => trackSandboxDisconnect());
+});
+
+test('sanitizeValue truncates long values to 255', async () => {
+  const { sanitizeValue } = await import('../plugins/huaweicloud-core/src/telemetry/telemetry.mjs');
+  const out = sanitizeValue('x'.repeat(500));
+  assert.equal(out.length, 255);
+  assert.ok(out.endsWith('...'));
+});
+
+test('sanitizeValue replaces newlines and tabs with spaces', async () => {
+  const { sanitizeValue } = await import('../plugins/huaweicloud-core/src/telemetry/telemetry.mjs');
+  assert.equal(sanitizeValue('a\nb\tc'), 'a b c');
+});
+
+test('sanitizeValue keeps short values intact', async () => {
+  const { sanitizeValue } = await import('../plugins/huaweicloud-core/src/telemetry/telemetry.mjs');
+  assert.equal(sanitizeValue('hcloud version'), 'hcloud version');
+});
+
+test('sanitizeValue coerces non-strings and nulls safely', async () => {
+  const { sanitizeValue } = await import('../plugins/huaweicloud-core/src/telemetry/telemetry.mjs');
+  assert.equal(sanitizeValue(null), '');
+  assert.equal(sanitizeValue(undefined), '');
+  assert.equal(sanitizeValue(123), '123');
 });
 
 test('cacheUserHash writes to filesystem', async () => {

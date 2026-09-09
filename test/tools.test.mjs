@@ -16,6 +16,7 @@ import {
   resolveCredentialsWithRuntime,
   setRuntimeCredentials,
 } from '../plugins/huaweicloud-core/src/auth/credentials.mjs';
+import { getKooCliVersion } from '../plugins/huaweicloud-core/src/koocli-version.mjs';
 
 test('runVersionCheck uses hcloud version instead of --version', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'huaweicloud-toolkit-version-'));
@@ -28,7 +29,7 @@ test('runVersionCheck uses hcloud version instead of --version', async () => {
   });
 
   assert.equal(result.installed, true);
-  assert.match(result.output, /"version": "7.0.0"/);
+  assert.match(result.output, /"version":\s*"7\.0\.0"/);
   assert.doesNotMatch(result.output, /--version/);
 });
 
@@ -40,6 +41,38 @@ test('runVersionCheck returns installed:false and errorCode on ENOENT', async ()
   assert.equal(result.installed, false);
   assert.equal(result.errorCode, 'HCLOUD_NOT_FOUND');
   assert.match(result.nextStep, /HCLOUD_BIN/);
+});
+
+test('runVersionCheck reports versionMismatch when installed version differs from kooCliVersion', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'huaweicloud-toolkit-version-'));
+  const script = join(dir, 'fake-hcloud.mjs');
+  writeFileSync(script, 'console.log(JSON.stringify({ version: "7.0.0", args: process.argv.slice(2) }));', 'utf8');
+
+  const result = await runVersionCheck({
+    executable: process.execPath,
+    executableArgs: [script],
+  });
+
+  assert.equal(result.installed, true);
+  assert.equal(result.installedVersion, '7.0.0');
+  assert.equal(result.kooCliVersion, getKooCliVersion());
+  assert.equal(result.versionMismatch, true);
+  assert.match(result.nextStep, /version mismatch/i);
+});
+
+test('runVersionCheck reports no versionMismatch when installed version matches kooCliVersion', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'huaweicloud-toolkit-version-'));
+  const script = join(dir, 'fake-hcloud.mjs');
+  writeFileSync(script, `console.log("当前KooCLI版本:${getKooCliVersion()}");`, 'utf8');
+
+  const result = await runVersionCheck({
+    executable: process.execPath,
+    executableArgs: [script],
+  });
+
+  assert.equal(result.installed, true);
+  assert.equal(result.installedVersion, getKooCliVersion());
+  assert.equal(result.versionMismatch, false);
 });
 
 test('TOOL_DEFINITIONS includes all required tools including sandbox', () => {
@@ -101,6 +134,18 @@ test('huaweicloud_hook_check_command returns deny finding', async () => {
   assert.equal(result.decision, 'deny');
   assert.equal(result.ok, false);
   assert.equal(result.findings[0].ruleId, 'hwc-network-public-admin-port');
+});
+
+test('huaweicloud_explain_error maps APIGW.0301 to credential/project_id guidance', async () => {
+  const result = await callTool('huaweicloud_explain_error', {
+    service: 'unknown',
+    errorCode: 'APIGW.0301',
+    message: 'Incorrect IAM authentication information',
+  });
+  const text = JSON.stringify(result);
+  assert.match(text, /Incorrect IAM authentication information/);
+  assert.match(text, /auth init/);
+  assert.match(text, /project_id/);
 });
 
 test('huaweicloud_hook_check_artifacts detects broad IAM policy', async () => {

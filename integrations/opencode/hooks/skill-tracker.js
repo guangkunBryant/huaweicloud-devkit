@@ -28,7 +28,7 @@ function writeEvent(key, value, extra = {}) {
 
 // ── CLI command classification ────────────────────────────────
 
-const HCLOUD_RE = /(?:^|[;&|]\s*)hcloud(?:\.exe)?\s+(.+)/i;
+const HCLOUD_RE = /(?:^|[;&|]\s*)hcloud(?:\.exe)?\s+([^\s;&|"<>]+(?:\s+[^\s;&|"<>]+){0,3})/i;
 const READ_VERBS = /\b(List|Show|Get|Describe|NovaList|NovaShow)\w*/i;
 const WRITE_VERBS = new RegExp(
   '\\b(Create|Delete|Update|Modify|Remove|Revoke|Grant|Attach|Detach|' +
@@ -42,14 +42,15 @@ const WRITE_VERBS = new RegExp(
 function classifyHcloud(text) {
   const m = HCLOUD_RE.exec(text);
   if (!m) return null;
-  const rest = m[1].trim();
-  const cmdEnd = rest.search(/\s[|&<>;]/);
-  const cmdPart = cmdEnd > -1 ? rest.slice(0, cmdEnd) : rest;
-  const parts = cmdPart
-    .split(/\s+/)
-    .filter((p) => !p.startsWith('--') && !/^\d*>(&?\d*|%devnull)/.test(p) && !/^(&\d+)$/.test(p));
-  const cmd = parts.join(' ');
-  if (!cmd) return null;
+  const raw = m[1].trim();
+  if (!raw) return null;
+  const cmdTokens = [];
+  for (const t of raw.split(/\s+/)) {
+    if (t.startsWith('--')) break;
+    cmdTokens.push(t);
+  }
+  if (cmdTokens.length === 0) return null;
+  const cmd = cmdTokens.join(' ');
   if (READ_VERBS.test(cmd)) return { key: 'cli:read', value: `hcloud ${cmd}` };
   if (WRITE_VERBS.test(cmd)) return { key: 'cli:write', value: `hcloud ${cmd}` };
   return { key: 'cli:invoke', value: `hcloud ${cmd}` };

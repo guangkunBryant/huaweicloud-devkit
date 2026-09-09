@@ -1,29 +1,66 @@
 # Changelog
 
-## 1.1.1 (2026-09-07)
+## 1.1.2-next.7 (2026-09-09)
 
-- chore: merge dev into main for 1.1.1 stable release (#513)
-- chore: add dsh.bundle manifest for DSH plugin ecosystem
-- chore(release): 1.1.0 (#440)
-- chore: merge dev into main for 1.1.0 release (#438)
-- chore: version override for 1.1.0 stable release (#433)
-- docs: add Huawei Cloud npm mirror recommendation for China users
-- chore(release): 1.0.2
-- style: prettier format fix
-- feat: v1.0.2 stable - merge all dev changes
-- fix(release): update release trigger to workflow_dispatch and main push only
-- feat(release): sync release workflow to main, seed manifest with 1.0.1
-- fix(release): retire the live Publish Dev workflow on main
-- fix(release): restore full publish flow with quoted step names
-- fix(release): probe publish job with environment only
-- fix(release): probe without job outputs and needs.outputs wiring
-- fix(release): restore full tag-gated publish logic
-- fix(release): reduce npm-publish workflow to minimal probe
-- fix(release): drop workflow_dispatch inputs, derive dist-tag from the tag version
-- fix(release): rename publish workflow to npm-publish to recover a fresh workflow_dispatch index
-- fix(release): add pack-verify script to main
-- fix(release): sync ci.yml with pack verification to main
-- fix(release): add tag-gated Publish workflow to main so workflow_dispatch works from tags
+- fix(skills): correct cli-domain-id root cause — it signals invalid credentials, not a missing domain-id (#574)
+
+## 1.1.2-next.6 (2026-09-09)
+
+- style: prettier table alignment (#574)
+- docs(voucher): drop in-flow domain-id discovery detail from test-env note (#574)
+- fix(skills): teach agents to self-discover cli-domain-id via STS GetCallerIdentity (#574)
+- docs(iac): verified traps from 2026-09-08 e2e report - keypair/RDS/DCS/EIP-quota/long-args/destroy-alignment
+- docs(sandbox): index.html platform-overwrite symptom, recovery, and prevention (#263)
+- feat(auth): complete non-interactive guidance and detect existing KooCLI profile in auth init (#260)
+
+## 1.1.2-next.5 (2026-09-09)
+
+- fix: clarify devkit version output
+- docs: note mirror-lag fallback to official registry (#518)
+- style: add trailing newline to hook-plugin test
+- fix(auth): spawn hcloud without shell in project-id resolution
+- feat(auth): validate credentials before sandbox injection + auto-set project_id (#259, #262)
+- feat(telemetry): route telemetry upload through proxy
+- feat(telemetry): classify MCP client names to canonical agent harness
+- fix(telemetry): regenerate userHash after credential switch
+- fix(telemetry): bound hcloud capture and isolate failed event retries
+
+## 1.1.2-next.4 (2026-09-08)
+
+- fix codex install auth probe and safety hook
+
+## 1.1.2-next.3 (2026-09-08)
+
+- test: align sandbox warning assertion with unified codearts wording (#261)
+- style: prettier format for hcloud-cli obs hint
+- style: prettier format for hermes skills snapshot
+- fix(setup): unify CodeArts sandbox warning with accurate settings path (#261)
+- feat(hermes): add skills snapshot for one-shot bulk install
+- fix(iac): manifest-first batch approval, verified timer schedule, OBS plan hint
+- chore: add mcpName field to package.json (#543)
+- fix(dew): distinguish auto-rotation enable vs RotateSecret trigger
+- fix(dew): CSMS CreateSecret uses --name, not --secret_name
+- test: add versionMismatch assertions for runVersionCheck
+- feat: pin KooCLI version and align skills with KooCLI 7.2.12
+
+## 1.1.2-next.2 (2026-09-08)
+
+- fix(release): make create-release-pr path helpers idempotent (#537)
+- docs: remove Cursor section from README
+- feat(mcp): add remote (Streamable HTTP) transport mode (#531)
+- docs: clarify Cursor marketplace status (not yet listed)
+- docs: document Cursor Directory support alongside other agents
+- docs: move Cursor Directory section below Documentation
+- fix: use agent-neutral wording for KooCLI config-write failure hint
+
+## 1.1.2-next.1 (2026-09-08)
+
+- fix(release): bump version override to 1.1.2 for next preview line (#527)
+- feat(update): session-level version update detection & auto-upgrade (#525)
+- chore: sync root plugin.json version to 1.1.1-next.16
+- chore: address Cursor marketplace PR review feedback
+- style: add trailing newline to plugin.json and mcp.json
+- chore: add Open Plugins manifest for Cursor marketplace
 
 ## 1.1.1-next.16 (2026-09-07)
 

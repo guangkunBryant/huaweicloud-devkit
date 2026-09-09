@@ -35,6 +35,10 @@ function countSkills(dir) {
   return readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory() && d.name.startsWith('huawei')).length;
 }
 
+function removeTempDir(path) {
+  rmSync(path, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+}
+
 test('officeace install copies skills, MCP server, and safety policy', () => {
   const home = mkdtempSync(join(tmpdir(), 'oa-home-'));
   const cwd = mkdtempSync(join(tmpdir(), 'oa-proj-'));
@@ -56,8 +60,8 @@ test('officeace install copies skills, MCP server, and safety policy', () => {
       'officeace plugin package.json version matches package',
     );
   } finally {
-    rmSync(home, { recursive: true, force: true });
-    rmSync(cwd, { recursive: true, force: true });
+    removeTempDir(home);
+    removeTempDir(cwd);
   }
 });
 
@@ -74,7 +78,7 @@ test('officeace uninstall removes installed files', () => {
     assert.equal(countSkills(join(oaHome, 'skills')), 0);
     assert.ok(!existsSync(join(oaHome, 'huaweicloud-plugins')));
   } finally {
-    rmSync(home, { recursive: true, force: true });
-    rmSync(cwd, { recursive: true, force: true });
+    removeTempDir(home);
+    removeTempDir(cwd);
   }
 });

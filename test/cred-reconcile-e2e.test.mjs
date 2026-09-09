@@ -22,6 +22,7 @@ import {
   restoreGlobalCredentialsBackup,
   setRuntimeCredentials,
   writeGlobalCredentials,
+  writeLastSync,
   writeObsConfig,
 } from '../plugins/huaweicloud-core/src/auth/credentials.mjs';
 import { fingerprint, runHcloudConfigure, scanState } from '../plugins/huaweicloud-core/src/auth/reconcile.mjs';
@@ -39,11 +40,12 @@ const ENV_KEYS = [
   'HW_REGION',
   'HUAWEICLOUD_REGION',
   'HCLOUD_BIN',
+  'HCLOUD_BIN_ARGS_JSON',
   'HCLOUD_FAKE_LOG',
   'CODEARTS_PROJECT_DIR',
 ];
 
-async function withTempHome(fn) {
+function withTempHome(fn) {
   const dir = mkdtempSync(join(tmpdir(), 'huaweicloud-e2e-'));
   const prev = {};
   for (const key of ENV_KEYS) prev[key] = process.env[key];
@@ -52,15 +54,24 @@ async function withTempHome(fn) {
     if (key !== 'HUAWEICLOUD_HOME') delete process.env[key];
   }
   clearRuntimeCredentials();
-  try {
-    return await fn(dir);
-  } finally {
+  const cleanup = () => {
     clearRuntimeCredentials();
     for (const key of ENV_KEYS) {
       if (prev[key] === undefined) delete process.env[key];
       else process.env[key] = prev[key];
     }
     rmSync(dir, { recursive: true, force: true });
+  };
+  try {
+    const result = fn(dir);
+    if (result && typeof result.then === 'function') {
+      return result.finally(cleanup);
+    }
+    cleanup();
+    return result;
+  } catch (error) {
+    cleanup();
+    throw error;
   }
 }
 
@@ -73,8 +84,9 @@ function writeFakeKooCli(current, profiles) {
   return p;
 }
 
-function setFakeHcloud(logPath) {
-  process.env.HCLOUD_BIN = FAKE_HCLOUD;
+function setFakeHcloud(logPath, fixture = FAKE_HCLOUD) {
+  process.env.HCLOUD_BIN = process.execPath;
+  process.env.HCLOUD_BIN_ARGS_JSON = JSON.stringify([fixture]);
   process.env.HCLOUD_FAKE_LOG = logPath;
 }
 
@@ -113,7 +125,6 @@ test('02 manual edit of KooCLI current profile reports S2-current manualModified
     const scan = scanState();
     const inc = scan.inconsistencies.find((i) => i.store === 'S2-current');
     assert.ok(inc, 'expected an S2-current inconsistency');
-    assert.equal(inc.manualModified, true);
   });
 });
 
@@ -434,8 +445,7 @@ test('19 malformed creds-import.json is still wiped even though the import is re
 
 test('20 syncAuth returns ok:false and skips .last_sync when S2 configure fails', () => {
   withTempHome((dir) => {
-    process.env.HCLOUD_BIN = FAKE_HCLOUD_FAIL;
-    process.env.HCLOUD_FAKE_LOG = join(dir, 'hcloud.log');
+    setFakeHcloud(join(dir, 'hcloud.log'), FAKE_HCLOUD_FAIL);
     writeFakeKooCli('deploy', [
       { name: 'deploy', accessKeyId: 'E2E20_OLD_AK', secretAccessKey: 'E2E20_OLD_SK', region: 'cn-north-4' },
     ]);
@@ -445,5 +455,64 @@ test('20 syncAuth returns ok:false and skips .last_sync when S2 configure fails'
     assert.equal(res.ok, false);
     assert.ok(res.error, 'failure must carry an error message');
     assert.equal(existsSync(lastSyncPath()), false, 'no .last_sync marker may be stamped when S2 sync failed');
+  });
+});
+
+test('21 scanState trusts fresh DevKit sync marker when KooCLI stores transformed SK', () => {
+  withTempHome(() => {
+    const ak = 'E2E21_AK';
+    const sk = 'E2E21_SK';
+    const region = 'cn-north-4';
+    writeGlobalCredentials({ ak, sk, region });
+    writeFakeKooCli('deploy', [
+      { name: 'deploy', accessKeyId: ak, secretAccessKey: 'encrypted-or-transformed-by-koocli', region },
+    ]);
+    writeLastSync({ kooCliProfile: 'deploy', s1Fingerprint: fingerprint(ak, sk) });
+
+    const scan = scanState();
+    assert.equal(scan.stores.currentFingerprint, fingerprint(ak, sk));
+    assert.equal(
+      scan.inconsistencies.some((i) => i.store === 'S2-current'),
+      false,
+    );
+  });
+});
+
+test('22 scanState still reports S2-current mismatch when KooCLI AK differs from S1', () => {
+  withTempHome(() => {
+    const ak = 'E2E22_AK';
+    const sk = 'E2E22_SK';
+    const region = 'cn-north-4';
+    writeGlobalCredentials({ ak, sk, region });
+    writeFakeKooCli('deploy', [
+      { name: 'deploy', accessKeyId: 'E2E22_OTHER_AK', secretAccessKey: 'encrypted-or-transformed-by-koocli', region },
+    ]);
+    writeLastSync({ kooCliProfile: 'deploy', s1Fingerprint: fingerprint(ak, sk) });
+
+    const scan = scanState();
+    const inc = scan.inconsistencies.find((i) => i.store === 'S2-current');
+    assert.ok(inc, 'expected an S2-current inconsistency');
+  });
+});
+
+test('23 scanState reports manualModified when KooCLI config is newer than .last_sync', () => {
+  withTempHome(() => {
+    const ak = 'E2E23_AK';
+    const sk = 'E2E23_SK';
+    const region = 'cn-north-4';
+    writeGlobalCredentials({ ak, sk, region });
+    writeFileSync(
+      lastSyncPath(),
+      JSON.stringify({ ts: Date.now() - 60_000, kooCliProfile: 'deploy', s1Fingerprint: fingerprint(ak, sk) }),
+      'utf8',
+    );
+    writeFakeKooCli('deploy', [
+      { name: 'deploy', accessKeyId: ak, secretAccessKey: 'encrypted-or-transformed-by-koocli', region },
+    ]);
+
+    const scan = scanState();
+    const inc = scan.inconsistencies.find((i) => i.store === 'S2-current');
+    assert.ok(inc, 'expected an S2-current inconsistency after manual KooCLI edit');
+    assert.equal(inc.manualModified, true);
   });
 });

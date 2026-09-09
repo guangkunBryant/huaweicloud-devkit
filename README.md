@@ -11,12 +11,6 @@ Help AI coding agents use Huawei Cloud safely and accurately — a single integr
 
 Supports OpenCode, Codex, CodeArts Agent, WorkBuddy, DeepSeek Harness (DSH), OfficeAce, Hermes, OpenClaw, and AtomCode.
 
-## Cursor Directory Plugin
-
-This repository also acts as an [Open Plugins](https://open-plugins.com) package for the [Cursor Directory](https://cursor.directory) marketplace. The root-level `plugin.json`, `mcp.json`, `skills/`, and `rules/` files are used **only** for Cursor Directory repository-scan discovery and are **not** shipped in the npm tarball (the `package.json` `files` whitelist excludes them). The npm package's manifests live under `plugins/huaweicloud-core/`.
-
-The `mcp.json` MCP server launches via `npx -y -p huaweicloud-devkit huaweicloud-devkit-mcp`, which tracks the npm `latest` tag. During pre-release this may differ from the manifest `version`; it can be pinned after a stable release.
-
 ## Prerequisites
 
 - Node.js >= 22
@@ -28,13 +22,19 @@ The `mcp.json` MCP server launches via `npx -y -p huaweicloud-devkit huaweicloud
 > ```
 >
 > Restore the default registry: `npm config delete registry`
+>
+> **Mirror lag**: npm mirrors (npmmirror, mirrors.huaweicloud.com) may lag behind the official registry for hours after a new release. If install fails with `ETARGET` or you get an older version, install via the official registry instead:
+>
+> ```bash
+> npx --yes --registry=https://registry.npmjs.org huaweicloud-devkit install --target <target>
+> ```
 
 ## Quick Start
 
 > If `--target` is omitted, the installer auto-detects agents on your machine. When multiple agents are detected, **all of them** will be installed. Specify `--target` to control which agent receives the install.
 
 ```bash
-npx --yes huaweicloud-devkit version  # print the installed plugin version per agent
+npx --yes huaweicloud-devkit version  # print CLI version and installed plugin versions per agent
 npx --yes huaweicloud-devkit uninstall --target all --clean-global  # also remove KooCLI + OBS config
 ```
 
@@ -63,13 +63,35 @@ npx --yes huaweicloud-devkit install --target codex
 **Restart the Codex session** after installation.
 
 ```bash
+codex plugin list  # verify huaweicloud-devkit@huaweicloud-devkit is installed and enabled
 npx --yes huaweicloud-devkit doctor --target codex
 npx --yes huaweicloud-devkit status --target codex
 npx --yes huaweicloud-devkit update --target codex
 npx --yes huaweicloud-devkit uninstall --target codex
 ```
 
+Then mention `@huaweicloud-devkit` in Codex or describe your Huawei Cloud task directly.
+
 > **Requires Codex CLI** — the `codex` command must be in PATH. If Codex is installed via WindowsApps (Microsoft Store), use `--target codex-desktop` instead. Run `codex --version` to verify CLI availability.
+
+### Codex Desktop
+
+Use this target when the Codex CLI is unavailable or when Codex is installed through WindowsApps on Windows.
+
+```bash
+npx --yes huaweicloud-devkit install --target codex-desktop
+```
+
+**Restart the Codex Desktop session** after installation.
+
+```bash
+npx --yes huaweicloud-devkit doctor --target codex-desktop
+npx --yes huaweicloud-devkit status --target codex-desktop
+npx --yes huaweicloud-devkit update --target codex-desktop
+npx --yes huaweicloud-devkit uninstall --target codex-desktop
+```
+
+Then mention `@huaweicloud-devkit` in a new Codex Desktop task or describe your Huawei Cloud task directly.
 
 ### CodeArts Agent
 
@@ -226,6 +248,30 @@ No installation required — `npx` handles everything.
 
 > Set `HW_ACCESS_KEY`/`HW_SECRET_KEY` in the MCP config `env` field for project-level credentials.
 
+#### Connecting over Remote (HTTP)
+
+If your agent supports `type: "remote"` (Streamable HTTP) instead of stdio, start the devkit remote MCP server locally first:
+
+```bash
+npx --yes huaweicloud-devkit-mcp --transport remote
+```
+
+It listens on `127.0.0.1:9528` by default (no conflict with the IACMCPServer port 9527). Then connect with a remote config (opencode example):
+
+```jsonc
+{
+  "mcp": {
+    "huaweicloud-devkit": {
+      "type": "remote",
+      "url": "http://localhost:9528",
+      "enabled": true,
+    },
+  },
+}
+```
+
+> Use `--port <port>` if 9528 is taken and update `url` accordingly; add `--host 0.0.0.0` for LAN access. The remote server has no built-in auth — do not expose it anonymously to the public internet.
+
 ### Install KooCLI
 
 ```bash
@@ -249,10 +295,13 @@ npx --yes huaweicloud-devkit install --target all
 ### Update All Agents
 
 ```bash
-npx --yes huaweicloud-devkit update --target all
+npx huaweicloud-devkit version
+npx --yes huaweicloud-devkit@latest update --target all
 ```
 
-`update` is incremental — it refreshes installed files without touching your config.
+`update` is incremental — it refreshes installed files without touching your
+config. Always keep `@latest` so npm fetches the newest version instead of a
+locally cached older one.
 
 ## What It Does
 

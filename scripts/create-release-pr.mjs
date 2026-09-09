@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -12,12 +12,14 @@ function run(cmd, opts) {
   return execSync(cmd, { cwd: root, stdio: 'inherit', ...opts });
 }
 
+// resolve() 对已是绝对路径的参数幂等（join() 会重复拼接），
+// 保证 readJson/writeJson 既支持相对路径也接受调用方拼好的绝对路径。
 function readJson(p) {
-  return JSON.parse(readFileSync(join(root, p), 'utf8'));
+  return JSON.parse(readFileSync(resolve(root, p), 'utf8'));
 }
 
 function writeJson(p, obj) {
-  writeFileSync(join(root, p), `${JSON.stringify(obj, null, 2)}\n`, 'utf8');
+  writeFileSync(resolve(root, p), `${JSON.stringify(obj, null, 2)}\n`, 'utf8');
 }
 
 const manifest = readJson('.release-please-manifest.json');
@@ -28,6 +30,13 @@ writeJson('.release-please-manifest.json', manifest);
 const pkg = readJson('package.json');
 pkg.version = version;
 writeJson('package.json', pkg);
+
+{
+  const p = join(root, 'plugin.json');
+  const m = readJson(p);
+  m.version = version;
+  writeJson(p, m);
+}
 
 const lock = readJson('package-lock.json');
 lock.version = version;
@@ -76,6 +85,7 @@ changelog = changelog.slice(0, insertAt) + entry + changelog.slice(insertAt);
 writeFileSync(join(root, changelogPath), changelog, 'utf8');
 
 const changedFiles = [
+  'plugin.json',
   '.release-please-manifest.json',
   'package.json',
   'package-lock.json',
@@ -92,7 +102,7 @@ execSync(`npx prettier --write ${changedFiles.join(' ')}`, { cwd: root, stdio: '
 const isPrerelease = version.includes('-');
 const prBranch = isPrerelease ? `release-${branch}-${version}` : `release-${version}`;
 run(`git checkout -b ${prBranch}`);
-run('git add .release-please-manifest.json package.json package-lock.json docs/CHANGELOG.md');
+run('git add plugin.json .release-please-manifest.json package.json package-lock.json docs/CHANGELOG.md');
 run(`git add ${pluginRoot}/.codex-plugin/plugin.json`);
 run(`git add ${pluginRoot}/.claude-plugin/plugin.json`);
 run(`git add ${pluginRoot}/.cursor-plugin/plugin.json`);
