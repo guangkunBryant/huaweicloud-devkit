@@ -29,9 +29,11 @@ import {
   hdkitCredentials,
   hdkitVoucherStatus,
   hdkitVoucherClaim,
+  hdkitGenerateUserHash,
 } from './sandbox/hdkitservice-api.mjs';
 import { getCredentials } from './sandbox/hwlink-api.mjs';
 import { getAuthStatus, syncAuth } from './auth/service.mjs';
+import { validateIamCredentials } from './auth/credential-validator.mjs';
 import {
   readGlobalCredentials,
   writeGlobalCredentials,
@@ -43,9 +45,22 @@ import {
   writeLastSync,
   readCodeArtsCredentials,
   globalCredentialsPath,
+  resolveCredentialsWithRuntime,
 } from './auth/credentials.mjs';
-import { trackToolInvoke, trackSkillRetrieve } from './telemetry/telemetry.mjs';
+import { trackToolInvoke, trackSkillRetrieve, clearUserHash } from './telemetry/telemetry.mjs';
 import { fingerprint, runHcloudConfigure, resolveManagedProfile } from './auth/reconcile.mjs';
+import {
+  getCachedUpdateInfo,
+  getUpdateDistTags,
+  invalidateUpdateCache,
+  judgeUpdate,
+  determineTarget,
+  readInstalledVersion,
+  writeSkipState,
+  resolveSkipFilePath,
+  upgradePackage,
+} from './update-check.mjs';
+import { hcloudProbeNextStep, probeHcloud } from './hcloud-probe.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SKILLS_ROOT_DEV = join(__dirname, '..', 'skills');
@@ -163,7 +178,8 @@ const SKILLS_ROOT = resolveSkillsRoot();
 export const TOOL_DEFINITIONS = [
   {
     name: 'huaweicloud_check_cli',
-    description: 'Check whether Huawei Cloud KooCLI hcloud is installed. Returns redacted output.',
+    description:
+      'Check whether Huawei Cloud KooCLI hcloud is installed and whether its version matches the plugin paired version. Returns redacted output.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -758,13 +774,18 @@ export const TOOL_DEFINITIONS = [
   {
     name: 'huaweicloud_sandbox_credentials',
     description:
-      'Configure temporary AK/SK for a sandbox via hdkitservice. Injects temporary credentials into the sandbox. The sandbox must be in RUNNING state.',
+      'Configure temporary AK/SK for a sandbox via hdkitservice. Validates the current AK/SK against IAM before injecting (invalid SK is rejected here instead of failing later with APIGW.0301 during exec), then injects temporary credentials into the sandbox. The sandbox must be in RUNNING state.',
     inputSchema: {
       type: 'object',
       properties: {
         session_id: { type: 'string', description: 'Session ID from huaweicloud_sandbox_connect' },
         dev_stage_id: { type: 'string', description: 'DevStation environment ID (alternative to session_id)' },
         enable_sts: { type: 'boolean', description: 'Whether to enable STS temporary AK/SK (default: true)' },
+        region: {
+          type: 'string',
+          description:
+            'Region used for IAM credential validation and project_id resolution (defaults to the configured region)',
+        },
       },
     },
   },
@@ -791,6 +812,36 @@ export const TOOL_DEFINITIONS = [
         domain_id: {
           type: 'string',
           description: 'Optional. Leave empty in production — account is resolved from IAM automatically.',
+        },
+      },
+    },
+  },
+  {
+    name: 'huaweicloud_check_update',
+    description:
+      '检查 huaweicloud-devkit 插件是否有新版本。结果含 currentVersion / latestStable / latestNext / targetVersion / updateAvailable / dismissExpiresAt / result。支持 dismiss:true 记录用户拒绝（3 天冷却，新版本会重新提醒）。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dismiss: { type: 'boolean', description: '用户拒绝升级时传 true，记录冷却状态。' },
+        dismissVersion: {
+          type: 'string',
+          description: '与 dismiss:true 搭配，用户拒绝的版本号。缺省时用当前检测到的 targetVersion。',
+        },
+      },
+    },
+  },
+  {
+    name: 'huaweicloud_upgrade',
+    description:
+      '升级 huaweicloud-devkit 到最新版本。执行前必须先征得用户同意。version 仅支持 "latest"。完成后需重启会话生效。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        version: { type: 'string', description: '仅支持 "latest"（默认）。' },
+        target: {
+          type: 'string',
+          description: 'agent 目标（opencode/codex/codearts/.../all）。缺省时用 all（仅更新已安装的）。',
         },
       },
     },
@@ -941,7 +992,9 @@ function persistCredentials(ak, sk, securityToken, region) {
   } else {
     hcloud = runHcloudConfigure(profile, ak, sk, region);
   }
-  writeLastSync();
+  if (hcloud.ok) {
+    writeLastSync({ kooCliProfile: profile, s1Fingerprint: fingerprint(ak, sk) });
+  }
   return {
     status: 'ok',
     scope: 'persist',
@@ -950,6 +1003,13 @@ function persistCredentials(ak, sk, securityToken, region) {
     hcloud,
     note: 'S1 written with configuredBySession (R9), which now takes priority over env-injected credentials; S2(current profile) and S3 synced. Note: running `auth init` later clears the configuredBySession flag and env credentials regain priority.',
   };
+}
+
+function refreshUserHashAfterAuthChange({ regenerate = true } = {}) {
+  clearUserHash();
+  if (regenerate) {
+    hdkitGenerateUserHash().catch(() => {});
+  }
 }
 
 export async function callTool(name, args = {}) {
@@ -1010,22 +1070,28 @@ export async function callTool(name, args = {}) {
       return setupObsConfig(args.profile);
     case 'huaweicloud_auth_status':
       return getAuthStatus(args.target || 'all');
-    case 'huaweicloud_auth_sync':
-      return syncAuth(args.target || 'all');
+    case 'huaweicloud_auth_sync': {
+      const result = syncAuth(args.target || 'all');
+      refreshUserHashAfterAuthChange();
+      return result;
+    }
     case 'huaweicloud_auth_init':
       if (args.clear) {
         clearRuntimeCredentials();
+        refreshUserHashAfterAuthChange({ regenerate: false });
         return { status: 'cleared', message: 'Runtime credentials cleared. Fallback to env/file.' };
       }
       if (!args.ak || !args.sk) {
         throw new Error('ak and sk are required. Set clear=true to clear runtime credentials.');
       }
       setRuntimeCredentials(args.ak, args.sk, undefined, args.region);
+      refreshUserHashAfterAuthChange();
       return { status: 'ok', message: 'Runtime credentials set for this MCP session.' };
     case 'huaweicloud_auth_switch': {
       const action = args.action || 'temporary';
       if (action === 'clear') {
         clearRuntimeCredentials();
+        refreshUserHashAfterAuthChange({ regenerate: false });
         return { status: 'cleared', message: 'Runtime credentials cleared. Fallback to env/file/S1.' };
       }
 
@@ -1055,6 +1121,7 @@ export async function callTool(name, args = {}) {
 
       if (action === 'temporary') {
         setRuntimeCredentials(ak, sk, securityToken || undefined, region);
+        refreshUserHashAfterAuthChange();
         return {
           status: 'ok',
           scope: 'temporary',
@@ -1086,7 +1153,9 @@ export async function callTool(name, args = {}) {
         };
       }
 
-      return persistCredentials(ak, sk, securityToken, region);
+      const persisted = persistCredentials(ak, sk, securityToken, region);
+      refreshUserHashAfterAuthChange();
+      return persisted;
     }
     case 'huaweicloud_auth_confirm': {
       const pending = pendingConfirms.get(args.token);
@@ -1095,7 +1164,9 @@ export async function callTool(name, args = {}) {
       if (args.decision === 's1') {
         return { status: 'ok', outcome: 'aborted', message: '保持 S1 现有账号，未覆盖。' };
       }
-      return persistCredentials(pending.newAk, pending.newSk, pending.newSecurityToken, pending.newRegion);
+      const confirmed = persistCredentials(pending.newAk, pending.newSk, pending.newSecurityToken, pending.newRegion);
+      refreshUserHashAfterAuthChange();
+      return confirmed;
     }
     case 'huaweicloud_sandbox_exec_with_session': {
       const sandboxWsId2 = args.workspace_id || getCurrentWorkspaceId();
@@ -1255,6 +1326,32 @@ export async function callTool(name, args = {}) {
     }
     case 'huaweicloud_sandbox_credentials': {
       const devStageId = args.dev_stage_id || getCurrentWorkspaceId();
+      let resolved;
+      try {
+        resolved = resolveCredentialsWithRuntime();
+      } catch {
+        resolved = null;
+      }
+      if (!resolved?.ak || !resolved?.sk) {
+        return {
+          ok: false,
+          error: 'Huawei Cloud credentials are not configured. Nothing was injected into the sandbox.',
+          hint: 'Run "npx huaweicloud-devkit auth init" or set HW_ACCESS_KEY/HW_SECRET_KEY, then retry.',
+        };
+      }
+      const validation = await validateIamCredentials({
+        ak: resolved.ak,
+        sk: resolved.sk,
+        securityToken: resolved.securityToken,
+        region: args.region || resolved.region,
+      });
+      if (!validation.valid && !validation.skipped) {
+        return {
+          ok: false,
+          error: 'Credential validation failed before injection: ' + validation.error,
+          hint: 'Credentials were NOT injected into the sandbox. Fix AK/SK first: run "npx huaweicloud-devkit auth init" or correct HW_ACCESS_KEY/HW_SECRET_KEY, then retry.',
+        };
+      }
       const credResult = await hdkitCredentials(args.session_id, devStageId, args.enable_sts !== false);
       const sandboxWsIdCred = args.dev_stage_id || getCurrentWorkspaceId();
       if (sandboxWsIdCred) {
@@ -1265,6 +1362,7 @@ export async function callTool(name, args = {}) {
             `export HW_SECRET_KEY='${sk}'`,
             securitytoken ? `export HW_SECURITY_TOKEN='${securitytoken}'` : '',
             securitytoken ? `export X_HW_SECURITY_TOKEN='${securitytoken}'` : '',
+            validation.projectId ? `export HW_PROJECT_ID='${validation.projectId}'` : '',
           ]
             .filter(Boolean)
             .join('\n');
@@ -1278,15 +1376,57 @@ export async function callTool(name, args = {}) {
           await execWithSession(sandboxWsIdCred, `source ${credsFile} && echo "CREDS_SOURCED"`, 'root', 15000);
         } catch {}
       }
-      return credResult;
+      const result = {
+        ...credResult,
+        credentialValidation: validation.warning ? 'passed-with-warning' : 'passed',
+      };
+      if (validation.projectId) result.projectId = validation.projectId;
+      if (validation.warning) result.warning = validation.warning;
+      if (validation.skipped) result.warning = validation.error;
+      return result;
     }
     case 'huaweicloud_voucher_status':
       return await hdkitVoucherStatus(args.domain_id);
     case 'huaweicloud_voucher_claim':
       return await hdkitVoucherClaim(args.domain_id);
+    case 'huaweicloud_check_update':
+      return await handleCheckUpdate(args);
+    case 'huaweicloud_upgrade':
+      return await handleUpgrade(args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
+}
+
+async function handleCheckUpdate(args = {}) {
+  const current = readInstalledVersion() || '0.0.0';
+  if (args.dismiss === true) {
+    const distTags = await getUpdateDistTags(current);
+    const target = determineTarget(current, distTags);
+    const dismissedVersion =
+      typeof args.dismissVersion === 'string' && args.dismissVersion ? args.dismissVersion : target || current;
+    const state = writeSkipState(resolveSkipFilePath(), dismissedVersion);
+    invalidateUpdateCache();
+    return judgeUpdate(current, distTags, state);
+  }
+  return getCachedUpdateInfo(current);
+}
+
+async function handleUpgrade(args = {}) {
+  const target = typeof args.target === 'string' && args.target ? args.target : 'all';
+  const version = typeof args.version === 'string' && args.version ? args.version : 'latest';
+  const current = readInstalledVersion() || '0.0.0';
+  const info = await getCachedUpdateInfo(current);
+  if (info && info.result === 'up_to_date') {
+    return {
+      success: false,
+      requiresRestart: false,
+      message: '已是最新版本，无需升级。',
+      currentVersion: info.currentVersion,
+      targetVersion: info.targetVersion,
+    };
+  }
+  return upgradePackage({ target, version });
 }
 
 function hookResult(result) {
@@ -1304,22 +1444,17 @@ function hookResult(result) {
 }
 
 export async function runVersionCheck(options = {}) {
-  const result = await runHcloud(['version'], {
-    ...options,
-    maxRetries: options.maxRetries ?? 0,
-  });
-  const errorText = result.error || result.stderr || '';
-  const isSpawnError = /ENOENT|SPAWN_ERROR/i.test(errorText) || result.code === 'SPAWN_ERROR';
+  const result = probeHcloud(options);
   return {
-    installed: result.ok,
-    authenticated: result.ok && !/配置文件中不存在配置项|USE_ERROR.*配置/i.test(result.stdout || ''),
-    errorCode: isSpawnError ? 'HCLOUD_NOT_FOUND' : undefined,
-    output: result.ok ? result.stdout : errorText,
-    nextStep: result.ok
-      ? 'Use huaweicloud_show_profile_redacted to inspect the active KooCLI profile safely.'
-      : isSpawnError
-        ? 'hcloud executable not found. Set HCLOUD_BIN to the full hcloud path, or install KooCLI: npx huaweicloud-devkit install-hcloud. Then restart the agent.'
-        : 'Install Huawei Cloud KooCLI: npx huaweicloud-devkit install-hcloud. Configure credentials outside the agent conversation.',
+    installed: result.installed,
+    authenticated: result.ok && !/配置文件中不存在配置项|USE_ERROR.*配置/i.test(result.output || ''),
+    errorCode: result.errorCode,
+    status: result.status,
+    output: result.output,
+    kooCliVersion: result.requiredVersion || undefined,
+    installedVersion: result.installedVersion || undefined,
+    versionMismatch: Boolean(result.versionMismatch),
+    nextStep: hcloudProbeNextStep(result),
     authHint:
       'If hcloud is installed but commands fail with "配置文件中不存在配置项", run `npx huaweicloud-devkit auth init` outside agent chat to configure credentials.',
   };
@@ -1731,6 +1866,8 @@ function explainError({ service = 'unknown', errorCode = '', message = '', reque
       'VPC.0301': 'Bandwidth name is required for PER type EIPs, even though --help marks it optional.',
     },
     APIGW: {
+      'APIGW.0301':
+        'Incorrect IAM authentication information. The AK/SK is invalid (check the SK for typos), the security token is missing or expired, or the profile lacks project_id. Fix: re-run "npx huaweicloud-devkit auth init" (it auto-sets project_id), or set it manually: hcloud configure set --cli-project-id=<project_id> after finding it via hcloud IAM KeystoneListProjects --cli-region=<region> --name=<region>.',
       'APIGW.0802':
         'The current IAM user has no permissions in the requested region. Go to IAM console → Users → Permissions → add the target region, or switch to a different region.',
     },
@@ -1761,7 +1898,9 @@ function explainError({ service = 'unknown', errorCode = '', message = '', reque
         ': API Gateway layer error. ' +
         (errorCode === 'APIGW.0802'
           ? 'IAM user has no region permissions — check IAM console → User → Permissions → add target region.'
-          : 'Verify the API request, region endpoint, and IAM permissions.'),
+          : errorCode === 'APIGW.0301'
+            ? 'Incorrect IAM authentication information — verify AK/SK (SK typos are the usual cause), security token expiry, and that project_id is configured (auth init auto-sets it).'
+            : 'Verify the API request, region endpoint, and IAM permissions.'),
     );
   }
   if (/region|endpoint|project/i.test(combined)) {

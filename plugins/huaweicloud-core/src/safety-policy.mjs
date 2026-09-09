@@ -109,6 +109,14 @@ function applyCommandRiskRules(base, normalizedArgs, options = {}) {
   return mergeRiskDecision(base, risk);
 }
 
+function applyRawCommandRiskRules(base, command, options = {}) {
+  if (base.decision === 'deny' || options.skipRiskRules === true) {
+    return base;
+  }
+  const risk = evaluateCommandRisk(command);
+  return mergeRiskDecision(base, risk);
+}
+
 export function classifyHcloudArgs(args, options = {}) {
   const policy = options.policy || DEFAULT_POLICY;
   const { service, operation, args: normalizedArgs } = commandOperation(args);
@@ -340,11 +348,15 @@ export function classifyTextCommand(command, options = {}) {
     };
   }
 
-  return {
-    decision: 'allow',
-    risk: 'not_huaweicloud',
-    reason: 'No Huawei Cloud safety rule matched.',
-  };
+  return applyRawCommandRiskRules(
+    {
+      decision: 'allow',
+      risk: 'not_huaweicloud',
+      reason: 'No Huawei Cloud safety rule matched.',
+    },
+    text,
+    options,
+  );
 }
 
 export function assertAllowed(result) {

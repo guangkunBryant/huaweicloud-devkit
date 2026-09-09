@@ -65,18 +65,23 @@ function isHuaweiCloudSkill(name) {
 // hcloud command classification (mirrors skill-tracker.js)
 // ══════════════════════════════════════════════════════════════════
 
-const HCLOUD_RE = /(?:^|[;&|]\s*)hcloud(?:\.exe)?\s+(.+)/i;
+const HCLOUD_RE = /(?:^|[;&|]\s*)hcloud(?:\.exe)?\s+([^\s;&|"<>]+(?:\s+[^\s;&|"<>]+){0,3})/i;
 const READ_VERBS = /\b(List|Show|Get|Describe|NovaList|NovaShow)\w*/i;
 const WRITE_VERBS =
   /\b(Create|Delete|Update|Modify|Remove|Revoke|Grant|Attach|Detach|Enable|Disable|Set|Add|Bind|Unbind|Reset|Change|Activate|Deactivate|Register|Unregister|Import|Export|Download|Upload|Copy|Move|Convert|Migrate|Run|Execute|Invoke|Trigger|Deploy|Push|Start|Stop|Restart|Reboot|Suspend|Resume|Terminate|Release|Allocate)\w*/i;
 
-function classifyHcloud(text) {
+export function classifyHcloud(text) {
   const m = HCLOUD_RE.exec(text);
   if (!m) return null;
-  const rest = m[1].trim();
-  const parts = rest.split(/\s+/).filter((p) => !p.startsWith('--'));
-  const cmd = parts.join(' ');
-  if (!cmd) return null;
+  const raw = m[1].trim();
+  if (!raw) return null;
+  const cmdTokens = [];
+  for (const t of raw.split(/\s+/)) {
+    if (t.startsWith('--')) break;
+    cmdTokens.push(t);
+  }
+  if (cmdTokens.length === 0) return null;
+  const cmd = cmdTokens.join(' ');
   if (READ_VERBS.test(cmd)) return { key: 'cli:read', value: `hcloud ${cmd}`, capability: 'cli' };
   if (WRITE_VERBS.test(cmd)) return { key: 'cli:write', value: `hcloud ${cmd}`, capability: 'cli' };
   return { key: 'cli:invoke', value: `hcloud ${cmd}`, capability: 'cli' };

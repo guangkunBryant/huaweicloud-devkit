@@ -10,15 +10,16 @@ import {
 } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { homedir, platform } from 'node:os';
+import { homedir, platform, tmpdir } from 'node:os';
 import { createInterface } from 'node:readline';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 
 import { getAuthStatus, syncAuth } from './auth/service.mjs';
+import { resolveAndApplyProjectId } from './auth/project-id.mjs';
 import { SUPPORTED_AGENT_TARGETS } from './auth/agent-registration.mjs';
-import { resolveManagedProfile } from './auth/reconcile.mjs';
+import { fingerprint, readKooCliProfiles, resolveManagedProfile } from './auth/reconcile.mjs';
 import { redactSecrets } from './safety-policy.mjs';
 import {
   globalCredentialsPath,
@@ -35,6 +36,9 @@ import {
   getProxySettings,
 } from './proxy/proxy-config.mjs';
 import { removeKooCli, removeObsConfig } from './sandbox/uninstall-cleanup.mjs';
+import { queryDistTagsSync, determineTarget, semverCompare } from './update-check.mjs';
+import { getKooCliVersion, compareVersion, kooCliDownloadBase, KOO_CLI_BASE } from './koocli-version.mjs';
+import { findHcloudBin, hcloudProbeNextStep, probeHcloud } from './hcloud-probe.mjs';
 
 const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite');
 
@@ -412,23 +416,6 @@ function detectCodeartsSandbox() {
   }
 }
 
-// Locate an existing hcloud executable (HCLOUD_BIN, ~/hcloud on Windows, ~/.local/bin elsewhere).
-function findHcloudBin() {
-  if (process.env.HCLOUD_BIN && existsSync(process.env.HCLOUD_BIN)) return process.env.HCLOUD_BIN;
-  const isWin = platform() === 'win32';
-  const candidates = isWin
-    ? [join(homedir(), 'hcloud', 'hcloud.exe')]
-    : [
-        join(homedir(), '.local', 'bin', 'hcloud'),
-        join(homedir(), 'hcloud', 'hcloud'),
-        join(homedir(), 'hcloud', 'hcloud.exe'),
-      ];
-  for (const c of candidates) {
-    if (existsSync(c)) return c;
-  }
-  return null;
-}
-
 function printSandboxWarning(reason) {
   console.log(`\n\x1b[1m\x1b[31m⚠ 检测到码道沙箱模式 (bash_mode: sandbox)\x1b[0m`);
   console.log(`\x1b[31m  ${reason}\x1b[0m`);
@@ -622,23 +609,6 @@ function hasCodexCLI() {
   return false;
 }
 
-function checkHcloud() {
-  const bin = findHcloudBin() || process.env.HCLOUD_BIN || 'hcloud';
-  if (!existsSync(bin)) return false;
-  try {
-    if (statSync(bin).size < 1024) return false;
-  } catch {
-    return false;
-  }
-  try {
-    const r = spawnSync(`"${bin}" version`, [], { shell: true, windowsHide: true, stdio: 'pipe', timeout: 5000 });
-    const out = (r.stdout ? r.stdout.toString() : '') + (r.stderr ? r.stderr.toString() : '');
-    return r.status === 0 && /KooCLI|Current.*version|当前KooCLI/i.test(out);
-  } catch {
-    return false;
-  }
-}
-
 function getMarketplaceName() {
   const marketplacePath = join(PACKAGE_ROOT, '.agents', 'plugins', 'marketplace.json');
   try {
@@ -648,9 +618,24 @@ function getMarketplaceName() {
   return 'huaweicloud-devkit';
 }
 
+function getCodexPluginName() {
+  const marketplacePath = join(PACKAGE_ROOT, '.agents', 'plugins', 'marketplace.json');
+  try {
+    const marketplace = JSON.parse(readFileSync(marketplacePath, 'utf8'));
+    const pluginName = marketplace.plugins?.[0]?.name;
+    if (pluginName) return pluginName;
+  } catch {}
+  const codexManifestPath = join(PLUGIN_ROOT, '.codex-plugin', 'plugin.json');
+  try {
+    const manifest = JSON.parse(readFileSync(codexManifestPath, 'utf8'));
+    if (manifest.name) return manifest.name;
+  } catch {}
+  return 'huaweicloud-devkit';
+}
+
 function installCodex() {
   const marketplaceRoot = PACKAGE_ROOT;
-  const pluginName = 'huaweicloud-core';
+  const pluginName = getCodexPluginName();
   const marketplaceName = getMarketplaceName();
 
   console.log(`  Registering Codex marketplace: ${marketplaceRoot}`);
@@ -664,6 +649,10 @@ function installCodex() {
   if (r1.status !== 0 && /Access is denied/i.test((r1.stderr || '').toString())) {
     console.log(`  \x1b[33mWindowsApps codex.exe permission denied.\x1b[0m`);
     console.log(`  \x1b[33mUse: npx huaweicloud-devkit install --target codex-desktop\x1b[0m`);
+    return false;
+  }
+  if (r1.status !== 0) {
+    console.log(`  \x1b[31mCodex marketplace registration failed.\x1b[0m`);
     return false;
   }
 
@@ -680,20 +669,26 @@ function installCodex() {
     console.log(`  \x1b[33mUse: npx huaweicloud-devkit install --target codex-desktop\x1b[0m`);
     return false;
   }
+  if (r2.status !== 0) {
+    console.log(`  \x1b[31mCodex plugin installation failed.\x1b[0m`);
+    return false;
+  }
 
   return true;
 }
 
 function uninstallCodex() {
-  const pluginName = 'huaweicloud-core';
+  const pluginName = getCodexPluginName();
   const marketplaceName = getMarketplaceName();
-  console.log(`  Removing Codex plugin: ${pluginName}@${marketplaceName}`);
-  const r = spawnSync(`codex plugin remove "${pluginName}@${marketplaceName}"`, [], {
-    shell: true,
-    windowsHide: true,
-    stdio: 'pipe',
-  });
-  console.log(`  ${r.stdout ? r.stdout.toString().trim() : r.stderr.toString().trim()}`);
+  for (const name of new Set([pluginName, 'huaweicloud-core'])) {
+    console.log(`  Removing Codex plugin: ${name}@${marketplaceName}`);
+    const r = spawnSync(`codex plugin remove "${name}@${marketplaceName}"`, [], {
+      shell: true,
+      windowsHide: true,
+      stdio: 'pipe',
+    });
+    console.log(`  ${r.stdout ? r.stdout.toString().trim() : r.stderr.toString().trim()}`);
+  }
 
   for (const name of new Set([marketplaceName, 'HuaweiCloud-Devkit'])) {
     console.log(`  Removing Codex marketplace: ${name}`);
@@ -709,7 +704,7 @@ function uninstallCodex() {
 function codexStatus() {
   const r = spawnSync('codex plugin list', [], { shell: true, windowsHide: true, stdio: 'pipe' });
   const out = r.stdout ? r.stdout.toString() : '';
-  return out.includes('huaweicloud-core');
+  return out.includes(getCodexPluginName()) || out.includes('huaweicloud-core');
 }
 
 async function installOpenCode() {
@@ -3056,22 +3051,36 @@ function parseTarget() {
 
 function checkForUpdate() {
   if (pkgVersion === '0.0.0') return;
-  const tag = /-next\.\d+/.test(pkgVersion) ? 'next' : 'latest';
-  let latest = null;
-  try {
-    const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const r = spawnSync(npmBin, ['view', `huaweicloud-devkit@${tag}`, 'version'], {
-      encoding: 'utf8',
-      timeout: 5000,
-      windowsHide: true,
-    });
-    if (r.status === 0) latest = (r.stdout || '').trim().split('\n').pop().trim();
-  } catch {}
-  if (latest && latest !== pkgVersion) {
+  const distTags = queryDistTagsSync({ timeoutMs: 5000 });
+  const target = determineTarget(pkgVersion, distTags ?? {});
+  if (target && semverCompare(target, pkgVersion) > 0) {
+    const tag = distTags.next && semverCompare(target, distTags.next) === 0 ? 'next' : 'latest';
     console.log(
-      `\n\x1b[33mℹ️ 检测到新版本：${latest}（当前 ${pkgVersion}，${tag} 频道）。建议运行 \`npx huaweicloud-devkit@${tag} update\` 更新。\x1b[0m`,
+      `\n\x1b[33mℹ️ 检测到新版本：${target}（当前 ${pkgVersion}，${tag} 频道）。建议运行 \`npx --yes huaweicloud-devkit@${tag} update\` 更新。\x1b[0m`,
     );
   }
+}
+
+function installMarkerDirForTarget(target) {
+  if (target === 'codex') return null;
+  if (target === 'dsh') return dshPluginsDir();
+  if (target === 'codearts') return codeartsPluginsDir();
+  if (target === 'codearts-work') return codeartsWorkPluginsDir();
+  if (target === 'workbuddy') return workbuddyPluginsDir();
+  if (target === 'officeace') return officeacePluginsDir();
+  if (target === 'hermes') return hermesPluginsDir();
+  if (target === 'openclaw') return openclawPluginsDir();
+  if (target === 'atomcode') return atomcodePluginsDir();
+  if (target === 'codex-desktop') return codexDesktopPluginsDir();
+  if (target === 'opencode') return opencodePluginsDir();
+  return null;
+}
+
+function writeInstallMarker(target) {
+  const markerDir = installMarkerDirForTarget(target);
+  if (!markerDir) return;
+  mkdirSync(markerDir, { recursive: true });
+  writeFileSync(join(markerDir, '.installed'), new Date().toISOString());
 }
 
 async function cmdInstall() {
@@ -3080,26 +3089,58 @@ async function cmdInstall() {
   console.log(`Installing HuaweiCloud DevKit${target !== 'opencode' ? ` for ${target}` : ''}...\n`);
   checkNode();
   checkForUpdate();
+  const installFailures = [];
+
+  async function runInstallStep(stepTarget, title, fn) {
+    console.log(title);
+    try {
+      const result = await fn();
+      if (result === false) {
+        installFailures.push(stepTarget);
+        return false;
+      }
+      writeInstallMarker(stepTarget);
+      return true;
+    } catch (error) {
+      installFailures.push(stepTarget);
+      console.log(`  \x1b[31m${stepTarget} install failed: ${error.message}\x1b[0m`);
+      return false;
+    }
+  }
 
   if (target === 'opencode' || target === 'all') {
-    console.log('[OpenCode]');
-    await installOpenCode();
+    await runInstallStep('opencode', '[OpenCode]', installOpenCode);
   }
   if (target === 'codex-desktop' || target === 'all') {
-    console.log('\n[Codex Desktop]');
-    await installCodexDesktop();
+    await runInstallStep('codex-desktop', '\n[Codex Desktop]', installCodexDesktop);
   }
   if (target === 'codearts' || target === 'all') {
-    console.log('\n[CodeArts]');
-    await installCodeArts();
+    await runInstallStep('codearts', '\n[CodeArts]', installCodeArts);
+  }
+  if (target === 'codearts-work' || target === 'all') {
+    await runInstallStep('codearts-work', '\n[CodeArts Work]', installCodeArtsWork);
   }
   if (target === 'codearts-work' || target === 'all') {
     console.log('\n[CodeArts Work]');
     await installCodeArtsWork();
   }
   if (target === 'workbuddy' || target === 'all') {
-    console.log('\n[WorkBuddy]');
-    await installWorkBuddy();
+    await runInstallStep('workbuddy', '\n[WorkBuddy]', installWorkBuddy);
+  }
+  if (target === 'dsh' || target === 'all') {
+    await runInstallStep('dsh', '\n[DSH]', installDsh);
+  }
+  if (target === 'officeace' || target === 'all') {
+    await runInstallStep('officeace', '\n[OfficeAce]', installOfficeAce);
+  }
+  if (target === 'hermes' || target === 'all') {
+    await runInstallStep('hermes', '\n[Hermes Agent]', installHermes);
+  }
+  if (target === 'openclaw' || target === 'all') {
+    await runInstallStep('openclaw', '\n[OpenClaw]', installOpenClaw);
+  }
+  if (target === 'atomcode' || target === 'all') {
+    await runInstallStep('atomcode', '\n[AtomCode]', installAtomCode);
   }
   if (target === 'dsh' || target === 'all') {
     console.log('\n[DSH]');
@@ -3122,27 +3163,38 @@ async function cmdInstall() {
     await installAtomCode();
   }
   if (target === 'codex' || target === 'all') {
-    console.log('\n[Codex]');
-    if (!hasCodexCLI()) {
-      if (target === 'codex') {
-        console.log(`  \x1b[31mCodex CLI not found.\x1b[0m`);
-        if (process.platform === 'win32') {
-          console.log(`  \x1b[33mTip: Codex Desktop on Windows installs codex.exe under WindowsApps,\x1b[0m`);
-          console.log(`  \x1b[33m     which may fail with "Access is denied". Try instead:\x1b[0m`);
-          console.log(`  \x1b[33m     npx huaweicloud-devkit install --target codex-desktop\x1b[0m`);
+    await runInstallStep('codex', '\n[Codex]', () => {
+      if (!hasCodexCLI()) {
+        if (target === 'codex') {
+          console.log(`  \x1b[31mCodex CLI not found.\x1b[0m`);
+          if (process.platform === 'win32') {
+            console.log(`  \x1b[33mTip: Codex Desktop on Windows installs codex.exe under WindowsApps,\x1b[0m`);
+            console.log(`  \x1b[33m     which may fail with "Access is denied". Try instead:\x1b[0m`);
+            console.log(`  \x1b[33m     npx huaweicloud-devkit install --target codex-desktop\x1b[0m`);
+          }
+          console.log(`  \x1b[31mOr install Codex CLI: https://github.com/openai/codex-cli\x1b[0m`);
+          return false;
         }
-        console.log(`  \x1b[31mOr install Codex CLI: https://github.com/openai/codex-cli\x1b[0m`);
-        process.exit(1);
+        console.log(`  \x1b[33mCodex CLI not found. Skipping Codex.\x1b[0m`);
+        if (process.platform === 'win32') {
+          console.log('  \x1b[33mTip: try --target codex-desktop for Codex Desktop on Windows\x1b[0m');
+        } else {
+          console.log('  Install Codex CLI to enable: npx huaweicloud-devkit install --target codex');
+        }
+        return true;
       }
-      console.log(`  \x1b[33mCodex CLI not found. Skipping Codex.\x1b[0m`);
-      if (process.platform === 'win32') {
-        console.log('  \x1b[33mTip: try --target codex-desktop for Codex Desktop on Windows\x1b[0m');
-      } else {
-        console.log('  Install Codex CLI to enable: npx huaweicloud-devkit install --target codex');
-      }
-    } else {
-      installCodex();
+      return installCodex();
+    });
+  }
+
+  if (installFailures.length > 0) {
+    console.log(`\n\x1b[31mInstallation failed for: ${installFailures.join(', ')}\x1b[0m`);
+    if (target === 'all') {
+      console.log(
+        '\x1b[33mSome targets may have been installed before the failure. Re-run status/doctor per target.\x1b[0m',
+      );
     }
+    process.exit(1);
   }
 
   console.log(`\n\x1b[32mInstallation complete!\x1b[0m`);
@@ -3197,10 +3249,15 @@ async function cmdInstall() {
     console.log(`\x1b[1m\x1b[33m╚══════════════════════════════════════════════════════╝\x1b[0m`);
   }
 
-  const hcloudOk = checkHcloud();
-  if (!hcloudOk) {
-    console.log(`\n\x1b[33mKooCLI (hcloud) is not installed.`);
-    console.log(`  Run: npx huaweicloud-devkit install-hcloud\x1b[0m`);
+  const hcloudProbe = probeHcloud();
+  if (!hcloudProbe.ok) {
+    if (hcloudProbe.status === 'sandbox_home_failure') {
+      console.log(`\n\x1b[33mKooCLI (hcloud) detected, but cannot run in this sandbox.`);
+      console.log(`  ${hcloudProbeNextStep(hcloudProbe)}\x1b[0m`);
+    } else {
+      console.log(`\n\x1b[33mKooCLI (hcloud) is not ready.`);
+      console.log(`  ${hcloudProbeNextStep(hcloudProbe)}\x1b[0m`);
+    }
   } else {
     console.log(`\nKooCLI (hcloud) detected.`);
   }
@@ -3219,27 +3276,6 @@ async function cmdInstall() {
   }
   console.log(`  4. 运行自检：npx huaweicloud-devkit doctor`);
 
-  // Write install marker for doctor to detect
-  const markerDir =
-    target === 'dsh'
-      ? dshPluginsDir()
-      : target === 'codearts'
-        ? codeartsPluginsDir()
-        : target === 'codearts-work'
-          ? codeartsWorkPluginsDir()
-          : target === 'workbuddy'
-            ? workbuddyPluginsDir()
-            : target === 'officeace'
-              ? officeacePluginsDir()
-              : target === 'openclaw'
-                ? codexDesktopPluginsDir()
-                : target === 'atomcode'
-                  ? atomcodePluginsDir()
-                  : target === 'codex-desktop'
-                    ? codexDesktopPluginsDir()
-                    : opencodePluginsDir();
-  mkdirSync(markerDir, { recursive: true });
-  writeFileSync(join(markerDir, '.installed'), new Date().toISOString());
   if (target === 'opencode' || target === 'all') {
     console.log('Or describe your Huawei Cloud task in OpenCode');
   }
@@ -3250,7 +3286,7 @@ async function cmdInstall() {
     console.log('Or describe your Huawei Cloud task in CodeArts Work');
   }
   if (target === 'codex' || target === 'all') {
-    console.log('Or mention @huaweicloud-core in Codex');
+    console.log('Or mention @huaweicloud-devkit in Codex');
   }
   if (target === 'workbuddy' || target === 'all') {
     console.log('Or describe your Huawei Cloud task in WorkBuddy');
@@ -3392,72 +3428,89 @@ async function promptGlobalCleanup() {
   }
 }
 
+function openclawStatus() {
+  const cdPluginDir = openclawPluginsDir();
+  const cdSkillsDir = openclawSkillsDir();
+  console.log(
+    `  MCP Server: ${existsSync(join(cdPluginDir, 'src', 'mcp-server.mjs')) ? '\x1b[32mInstalled\x1b[0m' : '\x1b[31mNot installed\x1b[0m'}`,
+  );
+  console.log(
+    `  Safety Policy: ${existsSync(join(cdPluginDir, 'safety', 'policy.json')) ? '\x1b[32mInstalled\x1b[0m' : '\x1b[31mNot installed\x1b[0m'}`,
+  );
+  let cdSkillCount = 0;
+  if (existsSync(cdSkillsDir)) {
+    cdSkillCount = readdirSync(cdSkillsDir, { withFileTypes: true }).filter(
+      (d) => d.isDirectory() && d.name.startsWith('huawei'),
+    ).length;
+  }
+  console.log(
+    `  Skills: ${cdSkillCount > 0 ? `\x1b[32m${cdSkillCount} installed\x1b[0m` : '\x1b[31mNot installed\x1b[0m'}`,
+  );
+}
+
+function codexSectionStatus() {
+  if (!hasCodexCLI()) {
+    console.log('  \x1b[33mCodex CLI not found.\x1b[0m');
+  } else {
+    console.log(`  Plugin: ${codexStatus() ? '\x1b[32mInstalled\x1b[0m' : '\x1b[31mNot installed\x1b[0m'}`);
+  }
+}
+
 async function cmdStatus() {
-  const target = parseTarget();
+  const scope = parseTarget();
   console.log(BANNER);
   console.log(`HuaweiCloud DevKit Status\n`);
 
-  if (target === 'opencode' || target === 'all') {
-    console.log('[OpenCode]');
-    opencodeStatus();
-  }
-  if (target === 'codearts' || target === 'all') {
-    console.log('\n[CodeArts]');
-    codeartsStatus();
-  }
-  if (target === 'codearts-work' || target === 'all') {
-    console.log('\n[CodeArts Work]');
-    codeartsWorkStatus();
-  }
-  if (target === 'workbuddy' || target === 'all') {
-    console.log('\n[WorkBuddy]');
-    workbuddyStatus();
-  }
-  if (target === 'dsh' || target === 'all') {
-    console.log('\n[DSH]');
-    dshStatus();
-  }
-  if (target === 'officeace' || target === 'all') {
-    console.log('\n[OfficeAce]');
-    officeaceStatus();
-  }
-  if (target === 'hermes' || target === 'all') {
-    console.log('\n[Hermes Agent]');
-    hermesStatus();
-  }
-  if (target === 'openclaw' || target === 'all') {
-    console.log('\n[OpenClaw]');
-    const cdPluginDir = openclawPluginsDir();
-    const cdSkillsDir = openclawSkillsDir();
-    console.log(
-      `  MCP Server: ${existsSync(join(cdPluginDir, 'src', 'mcp-server.mjs')) ? '\x1b[32mInstalled\x1b[0m' : '\x1b[31mNot installed\x1b[0m'}`,
-    );
-    console.log(
-      `  Safety Policy: ${existsSync(join(cdPluginDir, 'safety', 'policy.json')) ? '\x1b[32mInstalled\x1b[0m' : '\x1b[31mNot installed\x1b[0m'}`,
-    );
-    let cdSkillCount = 0;
-    if (existsSync(cdSkillsDir)) {
-      cdSkillCount = readdirSync(cdSkillsDir, { withFileTypes: true }).filter(
-        (d) => d.isDirectory() && d.name.startsWith('huawei'),
-      ).length;
+  const sections = [
+    { name: 'OpenCode', run: opencodeStatus, on: (target) => target === 'opencode' || target === 'all' },
+    { name: 'CodeArts', run: codeartsStatus, on: (target) => target === 'codearts' || target === 'all' },
+    { name: 'CodeArts Work', run: codeartsWorkStatus, on: (target) => target === 'codearts-work' || target === 'all' },
+    { name: 'WorkBuddy', run: workbuddyStatus, on: (target) => target === 'workbuddy' || target === 'all' },
+    { name: 'DSH', run: dshStatus, on: (target) => target === 'dsh' || target === 'all' },
+    { name: 'OfficeAce', run: officeaceStatus, on: (target) => target === 'officeace' || target === 'all' },
+    { name: 'Hermes Agent', run: hermesStatus, on: (target) => target === 'hermes' || target === 'all' },
+    { name: 'OpenClaw', run: openclawStatus, on: (target) => target === 'openclaw' || target === 'all' },
+    { name: 'AtomCode', run: atomcodeStatus, on: (target) => target === 'atomcode' || target === 'all' },
+    { name: 'Codex', run: codexSectionStatus, on: (target) => target === 'codex' || target === 'all' },
+  ];
+
+  // Capture each section's output so results can be grouped by install state
+  // (installed first) instead of the fixed agent order.
+  const originalLog = console.log;
+  const results = [];
+  for (const section of sections) {
+    if (!section.on(scope)) continue;
+    const lines = [];
+    console.log = (...args) => lines.push(args.map((a) => String(a)).join(' '));
+    try {
+      section.run();
+    } finally {
+      console.log = originalLog;
     }
-    console.log(
-      `  Skills: ${cdSkillCount > 0 ? `\x1b[32m${cdSkillCount} installed\x1b[0m` : '\x1b[31mNot installed\x1b[0m'}`,
-    );
+    const plain = lines.join('\n');
+    const hasInstalled = /Installed/.test(plain);
+    const hasMissing = /Not installed|not found/i.test(plain);
+    const state = hasInstalled && hasMissing ? 'partial' : hasInstalled ? 'installed' : hasMissing ? 'not' : 'unknown';
+    results.push({ name: section.name, lines, state });
   }
-  if (target === 'atomcode' || target === 'all') {
-    console.log('\n[AtomCode]');
-    atomcodeStatus();
+
+  const stateOrder = { installed: 0, partial: 1, unknown: 2, not: 3 };
+  results.sort((a, b) => stateOrder[a.state] - stateOrder[b.state]);
+
+  const namesIn = (state) => results.filter((r) => r.state === state).map((r) => r.name);
+  const summaryParts = [];
+  if (namesIn('installed').length) summaryParts.push(`已安装: ${namesIn('installed').join(', ')}`);
+  if (namesIn('partial').length) summaryParts.push(`部分安装: ${namesIn('partial').join(', ')}`);
+  if (namesIn('not').length) summaryParts.push(`未安装: ${namesIn('not').join(', ')}`);
+  if (summaryParts.length) console.log(`  ${summaryParts.join(' | ')}\n`);
+
+  for (const result of results) {
+    console.log(`[${result.name}]`);
+    for (const line of result.lines) console.log(line);
+    console.log('');
   }
-  if (target === 'codex' || target === 'all') {
-    console.log('\n[Codex]');
-    if (!hasCodexCLI()) {
-      console.log('  \x1b[33mCodex CLI not found.\x1b[0m');
-    } else {
-      console.log(`  Plugin: ${codexStatus() ? '\x1b[32mInstalled\x1b[0m' : '\x1b[31mNot installed\x1b[0m'}`);
-    }
-  }
-  console.log('\nEnvironment:');
+
+  console.log('Environment:');
   console.log(`  Node.js: ${process.version}`);
   console.log(`  Platform: ${platform()}`);
 }
@@ -3552,6 +3605,21 @@ async function cmdDoctor() {
     existsSync(join(hermesPluginDir, 'safety', 'policy.json')) ||
     existsSync(join(atomcodePluginDir, 'safety', 'policy.json'));
   check('Safety policy installed', safetyOk, 'Run: npx huaweicloud-devkit install');
+
+  const hookConfigPath = join(PLUGIN_ROOT, 'hooks', 'hooks.json');
+  const hookNodePath = join(PLUGIN_ROOT, 'hooks', 'huaweicloud-safety.mjs');
+  let hookConfigUsesNode = false;
+  let hookConfigUsesPython = false;
+  try {
+    const hookConfigText = readFileSync(hookConfigPath, 'utf8');
+    hookConfigUsesNode = hookConfigText.includes('huaweicloud-safety.mjs') && /\bnode\b/.test(hookConfigText);
+    hookConfigUsesPython = /\bpython3?\b/.test(hookConfigText);
+  } catch {}
+  check(
+    'Safety hook runtime (Node)',
+    existsSync(hookNodePath) && hookConfigUsesNode && !hookConfigUsesPython,
+    'hooks/hooks.json should invoke node hooks/huaweicloud-safety.mjs, not python3',
+  );
 
   // MCP config — check OpenCode, Codex Desktop, CodeArts, WorkBuddy, and DSH
   let mcpConfigured = false;
@@ -3664,28 +3732,47 @@ async function cmdDoctor() {
   }
 
   // hcloud CLI
-  const hcloudBin = findHcloudBin() || process.env.HCLOUD_BIN || 'hcloud';
-  const hcloudCheck = spawnSync(`"${hcloudBin}" version`, [], {
-    shell: true,
-    windowsHide: true,
-    stdio: 'pipe',
-    timeout: 5000,
-  });
-  const hcloudOut = (hcloudCheck.stdout || '').toString() + (hcloudCheck.stderr || '').toString();
-  const hcloudOk = hcloudCheck.status === 0 && /KooCLI|Current.*version|当前KooCLI/i.test(hcloudOut);
-  check('hcloud CLI installed', hcloudOk, 'Run: npx huaweicloud-devkit install-hcloud');
+  const hcloudProbe = probeHcloud();
+  const hcloudBin = hcloudProbe.executable;
+  const hcloudOk = hcloudProbe.ok;
+  check('hcloud CLI installed', hcloudProbe.installed, hcloudProbeNextStep(hcloudProbe));
+  if (hcloudProbe.status === 'sandbox_home_failure') {
+    warn++;
+    console.log(`  \x1b[33m[WARN]\x1b[0m hcloud cannot resolve the Windows user home in this agent sandbox.`);
+    console.log(`        ${hcloudProbeNextStep(hcloudProbe)}`);
+  } else if (hcloudProbe.status === 'privacy_pending') {
+    warn++;
+    console.log(`  \x1b[33m[WARN]\x1b[0m KooCLI privacy agreement is pending.`);
+    console.log(`        ${hcloudProbeNextStep(hcloudProbe)}`);
+  }
+
+  const kooCliTarget = getKooCliVersion();
+  if (hcloudOk && kooCliTarget) {
+    const installed = hcloudProbe.installedVersion;
+    if (installed && compareVersion(installed, kooCliTarget) !== 0) {
+      warn++;
+      console.log(
+        `  \x1b[33m[WARN]\x1b[0m KooCLI version mismatch: installed ${installed}, this plugin is paired with ${kooCliTarget}.`,
+      );
+      console.log(
+        `        Reinstall the pinned version: curl -LO "${kooCliDownloadBase()}/huaweicloud-cli-linux-amd64.tar.gz" (or your platform's package), or run \`npx huaweicloud-devkit install-hcloud\`.`,
+      );
+    }
+  }
 
   // CodeArts sandbox mode warning
   const sandboxMode = detectCodeartsSandbox();
   if (sandboxMode === 'sandbox') {
-    console.log(`  \x1b[33m[WARN]\x1b[0m CodeArts sandbox mode active (bash_mode: sandbox)`);
-    console.log(`        KooCLI may fail to write config in ~/.hcloud/ and hang on the privacy agreement.`);
-    console.log(`        Fix: disable sandbox (Settings → Permissions) or use a terminal outside CodeArts.`);
+    console.log(`  \x1b[33m[WARN]\x1b[0m 检测到码道沙箱模式 (bash_mode: sandbox)`);
+    console.log(`        KooCLI 可能无法写入 ~/.hcloud/ 配置目录，并卡在隐私协议确认。`);
+    console.log(
+      `        修复：在码道设置中关闭沙箱模式后重试 (设置 → 对话流 → 智能体 终端命令运行模式 → 自动运行)，或改用码道外的终端。`,
+    );
     warn++;
   }
 
   if (hcloudOk) {
-    const ver = (hcloudCheck.stdout.toString().match(/(\d+\.\d+\.\d+)/) || [])[1] || 'unknown';
+    const ver = hcloudProbe.installedVersion || 'unknown';
     console.log(`    Version: ${ver}`);
 
     // Check auth
@@ -3766,6 +3853,7 @@ async function cmdDoctor() {
     { path: join(codeartsPluginsDir(), '.installed'), name: 'CodeArts' },
     { path: join(codeartsWorkPluginsDir(), '.installed'), name: 'CodeArts Work' },
     { path: join(dshPluginsDir(), '.installed'), name: 'DSH' },
+    { path: join(hermesPluginsDir(), '.installed'), name: 'Hermes Agent' },
     { path: join(officeacePluginsDir(), '.installed'), name: 'OfficeAce' },
     { path: join(atomcodePluginsDir(), '.installed'), name: 'AtomCode' },
   ];
@@ -4023,7 +4111,9 @@ async function cmdInstallHcloud() {
 
   const os = platform();
   const arch = process.arch;
-  const baseUrl = 'https://cn-north-4-hdn-koocli.obs.cn-north-4.myhuaweicloud.com/cli/latest';
+  const baseUrl = kooCliDownloadBase();
+  const kooCliVersion = getKooCliVersion();
+  const latestUrl = `${KOO_CLI_BASE}/latest`;
   const installDir = os === 'win32' ? join(homedir(), 'hcloud') : join(homedir(), '.local', 'bin');
 
   if (os === 'win32') {
@@ -4104,7 +4194,7 @@ async function cmdInstallHcloud() {
         if (r.status === 0) {
           console.log('  \x1b[32mPrivacy agreement accepted. KooCLI ready.\x1b[0m');
         } else {
-          console.log('  \x1b[33m无法写入配置目录。请在码道外终端运行: echo "y" | hcloud version\x1b[0m');
+          console.log('  \x1b[33m无法写入配置目录。请在普通终端运行: echo "y" | hcloud version\x1b[0m');
         }
       } else {
         console.log('  \x1b[33m请手动接受隐私协议：在终端运行 hcloud version 并按提示操作\x1b[0m');
@@ -4119,30 +4209,102 @@ async function cmdInstallHcloud() {
         printSandboxWarning('沙箱模式拦截了 KooCLI 自动安装（无法创建/写入安装目录）。');
       }
     }
-  } else if (os === 'linux') {
-    console.log('[Linux] One-liner install:');
-    console.log(
-      '  curl -sSL https://cn-north-4-hdn-koocli.obs.cn-north-4.myhuaweicloud.com/cli/latest/hcloud_install.sh -o ./hcloud_install.sh && bash ./hcloud_install.sh -y',
-    );
-    console.log(`\nOr manual: ${arch === 'arm64' ? 'ARM64' : 'AMD64'}`);
-    const pkg = arch === 'arm64' ? 'linux-arm64' : 'linux-amd64';
-    console.log(`  curl -LO "${baseUrl}/huaweicloud-cli-${pkg}.tar.gz"`);
-    console.log(`  tar -zxvf huaweicloud-cli-${pkg}.tar.gz`);
-    console.log(`  mv hcloud ~/.local/bin/`);
-    console.log(`  hcloud version`);
-    console.log(`\nFull guide: https://support.huaweicloud.com/qs-hcli/hcli_02_003_02.html`);
-  } else if (os === 'darwin') {
-    console.log('[macOS] One-liner install:');
-    console.log(
-      '  curl -sSL https://cn-north-4-hdn-koocli.obs.cn-north-4.myhuaweicloud.com/cli/latest/hcloud_install.sh -o ./hcloud_install.sh && bash ./hcloud_install.sh -y',
-    );
-    console.log(`\nOr manual: ${arch === 'arm64' ? 'ARM64 (Apple Silicon)' : 'AMD64 (Intel)'}`);
-    const pkg = arch === 'arm64' ? 'mac-arm64' : 'mac-amd64';
-    console.log(`  curl -LO "${baseUrl}/huaweicloud-cli-${pkg}.tar.gz"`);
-    console.log(`  tar -zxvf huaweicloud-cli-${pkg}.tar.gz`);
-    console.log(`  mv hcloud /usr/local/bin/`);
-    console.log(`  hcloud version`);
-    console.log(`\nFull guide: https://support.huaweicloud.com/qs-hcli/hcli_02_003_03.html`);
+  } else if (os === 'linux' || os === 'darwin') {
+    const label = os === 'linux' ? 'Linux' : 'macOS';
+    const pkg =
+      os === 'linux'
+        ? arch === 'arm64'
+          ? 'linux-arm64'
+          : 'linux-amd64'
+        : arch === 'arm64'
+          ? 'mac-arm64'
+          : 'mac-amd64';
+    const url = `${baseUrl}/huaweicloud-cli-${pkg}.tar.gz`;
+    const binDir = os === 'linux' ? join(homedir(), '.local', 'bin') : '/usr/local/bin';
+    const binPath = join(binDir, 'hcloud');
+
+    const printManual = () => {
+      console.log(`\n[${label}] Manual install (pinned to KooCLI ${kooCliVersion || ''}):`);
+      console.log(`  curl -LO "${url}"`);
+      console.log(`  tar -zxvf huaweicloud-cli-${pkg}.tar.gz`);
+      console.log(`  mv hcloud ${binDir}/`);
+      console.log(`  hcloud version`);
+      console.log(`\n  Or one-liner (installs LATEST, may differ from pinned ${kooCliVersion || ''}):`);
+      console.log(`  curl -sSL ${latestUrl}/hcloud_install.sh -o ./hcloud_install.sh && bash ./hcloud_install.sh -y`);
+      console.log(
+        `  \x1b[33m⚠️  The one-liner installs the latest KooCLI. If \`hcloud version\` != ${kooCliVersion}, doctor/check_cli will warn — use the pinned download above instead.\x1b[0m`,
+      );
+      console.log(
+        `\nFull guide: https://support.huaweicloud.com/qs-hcli/hcli_02_003_0${os === 'linux' ? '2' : '3'}.html`,
+      );
+    };
+
+    if (detectCodeartsSandbox() === 'sandbox') {
+      printSandboxWarning('沙箱模式拦截了 KooCLI 自动安装（无法创建/写入安装目录）。');
+      printManual();
+    } else {
+      console.log(`[${label}] Auto-installing to ${binDir}...`);
+      try {
+        const tmpTar = join(tmpdir(), `huaweicloud-cli-${pkg}.tar.gz`);
+        console.log(`  Downloading ${url}...`);
+        const dl = spawnSync('curl', ['-fL', url, '-o', tmpTar], { stdio: 'inherit', timeout: 180000 });
+        if (dl.status !== 0) throw new Error(`下载失败 (curl exit ${dl.status})`);
+
+        console.log('  Extracting...');
+        const ex = spawnSync('tar', ['-xzf', tmpTar, '-C', tmpdir()], { stdio: 'inherit', timeout: 60000 });
+        if (ex.status !== 0) throw new Error(`解压失败 (tar exit ${ex.status})`);
+        rmSync(tmpTar, { force: true });
+        const extracted = join(tmpdir(), 'hcloud');
+        if (!existsSync(extracted)) throw new Error('hcloud 二进制未生成，可能已被安全软件拦截');
+
+        try {
+          mkdirSync(binDir, { recursive: true });
+        } catch {}
+        console.log('  Installing...');
+        let mv = spawnSync('mv', [extracted, binPath], { stdio: 'inherit', timeout: 30000 });
+        if (mv.status !== 0) {
+          console.log('  目标目录需要权限，尝试 sudo mv...');
+          mv = spawnSync('sudo', ['mv', extracted, binPath], { stdio: 'inherit', timeout: 30000 });
+          if (mv.status !== 0) throw new Error(`安装失败 (mv exit ${mv.status})`);
+        }
+
+        console.log(`\n\x1b[32mInstall complete.\x1b[0m`);
+        console.log(`  Verify: ${binPath} version`);
+
+        // Ask user before accepting the privacy agreement — never auto-accept.
+        if (process.stdin.isTTY && process.stdout.isTTY) {
+          const rl = createInterface({ input: process.stdin, output: process.stdout });
+          const agree = await new Promise((resolve) => {
+            rl.question('\n  KooCLI requires accepting its privacy agreement. Do you accept? (y/N) ', (answer) => {
+              rl.close();
+              resolve(/^\s*y\s*$/i.test(answer));
+            });
+          });
+          if (agree) {
+            const r = spawnSync(binPath, ['version'], {
+              input: 'y\n',
+              encoding: 'utf8',
+              timeout: 15000,
+            });
+            console.log(
+              r.status === 0
+                ? '  \x1b[32mPrivacy agreement accepted. KooCLI ready.\x1b[0m'
+                : '  \x1b[33m无法写入配置目录。请在终端运行: hcloud version 并按提示操作\x1b[0m',
+            );
+          } else {
+            console.log('  \x1b[33m请手动接受隐私协议：在终端运行 hcloud version 并按提示操作\x1b[0m');
+          }
+        } else {
+          console.log('  \x1b[33m非交互会话：请稍后在终端运行 hcloud version 并按提示接受隐私协议\x1b[0m');
+        }
+      } catch (error) {
+        console.log(`\n\x1b[33mAuto-install failed: ${error.message}\x1b[0m`);
+        printManual();
+        if (detectCodeartsSandbox() === 'sandbox') {
+          printSandboxWarning('沙箱模式拦截了 KooCLI 自动安装（无法创建/写入安装目录）。');
+        }
+      }
+    }
   }
 
   console.log('\nAfter install, set HCLOUD_BIN if hcloud is not on PATH.');
@@ -4262,6 +4424,16 @@ async function cmdAuthInit() {
   console.log('  3. 下载凭证文件（内含 AK 和 SK）。');
   console.log('     注意：SK 只在创建密钥时显示一次，请妥善保存该文件。\n');
 
+  try {
+    const kooCli = readKooCliProfiles();
+    const currentProfile = kooCli.profiles?.find((p) => p.name === kooCli.current);
+    if (currentProfile?.accessKeyId) {
+      console.log(
+        `\x1b[33m检测到 KooCLI 已配置 profile "${currentProfile.name}"（AK 已存储）。SK 为加密存储无法导出，请直接输入或通过环境变量提供凭据。\x1b[0m\n`,
+      );
+    }
+  } catch {}
+
   let ak = process.env.HW_ACCESS_KEY || '';
   let sk = process.env.HW_SECRET_KEY || '';
   let securityToken = process.env.HW_SECURITY_TOKEN || '';
@@ -4272,7 +4444,12 @@ async function cmdAuthInit() {
     console.error(
       '\x1b[31mNon-interactive session detected. Provide credentials via environment variables instead:\x1b[0m',
     );
-    console.error('  HW_ACCESS_KEY, HW_SECRET_KEY');
+    console.error(
+      '  export HW_ACCESS_KEY=<ak> HW_SECRET_KEY=<sk>   then re-run "npx huaweicloud-devkit auth init" to continue',
+    );
+    console.error(
+      '  (Agents: prefer huaweicloud_auth_switch mode=import — reads ~/.config/huaweicloud/creds-import.json and wipes it, so the SK never enters the conversation.)',
+    );
     console.error('  (Or run "npx huaweicloud-devkit auth init" in a real terminal.)');
     process.exitCode = 1;
     return;
@@ -4301,6 +4478,18 @@ async function cmdAuthInit() {
   if (findHcloudBin()) {
     const result = configureHcloud({ ak, sk, region });
     if (!result.ok) console.log(`KooCLI update failed: ${result.error || result.code}`);
+    else {
+      const proj = resolveAndApplyProjectId({ region });
+      if (proj.ok) {
+        console.log(`  Project ID auto-set: ${proj.projectId}`);
+      } else {
+        console.log(
+          `\x1b[33m  Project ID not auto-set (${proj.reason}). Sandbox exec may fail with APIGW.0301 until it is configured:\x1b[0m`,
+        );
+        console.log(`    hcloud IAM KeystoneListProjects --cli-region=${region} --name=${region}`);
+        console.log(`    hcloud configure set --cli-project-id=<project_id>`);
+      }
+    }
   } else {
     console.log('KooCLI not found. Run "npx huaweicloud-devkit install-hcloud" and then "auth sync".');
   }
@@ -4353,12 +4542,18 @@ async function cmdAuthReconcile() {
     console.log(`OBS sync failed: ${error.message}`);
   }
   const profile = resolveManagedProfile();
+  let hcloudSynced = false;
   if (profile) {
     const r = runHcloudConfigure(profile, credentials.ak, credentials.sk, credentials.region);
+    hcloudSynced = r.ok;
     console.log(`  KooCLI ${r.ok ? 'synced' : 'sync failed'}: profile=${profile} ${r.error || ''}`);
   }
-  writeLastSync();
-  console.log('Done. .last_sync refreshed.');
+  if (hcloudSynced) {
+    writeLastSync({ kooCliProfile: profile, s1Fingerprint: fingerprint(credentials.ak, credentials.sk) });
+    console.log('Done. .last_sync refreshed.');
+  } else {
+    console.log('Done. .last_sync was not refreshed because KooCLI sync did not complete.');
+  }
 }
 
 async function cmdAuthSync() {
@@ -4497,6 +4692,8 @@ function readInstalledVersion(pluginsDir) {
 }
 
 function cmdVersion() {
+  console.log(`HuaweiCloud DevKit CLI: ${pkgVersion}`);
+
   const agents = [
     ['OpenCode', opencodePluginsDir()],
     ['Codex Desktop', codexDesktopPluginsDir()],
@@ -4509,16 +4706,24 @@ function cmdVersion() {
     ['Hermes', hermesPluginsDir()],
     ['AtomCode', atomcodePluginsDir()],
   ];
-  let found = 0;
+  const installed = [];
   for (const [label, dir] of agents) {
     const v = dir ? readInstalledVersion(dir) : null;
     if (!v) continue;
-    console.log(`${label}: ${v}`);
-    found += 1;
+    installed.push([label, v]);
   }
-  if (found === 0) {
+
+  if (installed.length === 0) {
+    console.log('');
     console.log('No Huawei Cloud DevKit plugin installed. Run `npx huaweicloud-devkit install --target <agent>`.');
+    return;
   }
+
+  console.log('\nInstalled agent plugins:');
+  for (const [label, version] of installed) {
+    console.log(`${label}: ${version}`);
+  }
+  console.log('\nRun `npx huaweicloud-devkit update --target <agent>` to refresh installed agent plugins.');
 }
 
 async function main() {
@@ -4581,13 +4786,13 @@ async function main() {
       console.log('  install-hcloud  Show KooCLI install commands for your OS');
       console.log('  auth         Manage unified auth: init | sync | status | reconcile');
       console.log('  proxy        Manage proxy config: init | show | clear');
-      console.log('  version      Print installed plugin version per agent');
+      console.log('  version      Print CLI version and installed plugin version per agent');
       console.log('  help         Show this help');
       console.log('\nOptions:');
       console.log(
         '  --target     Target agent: opencode (default), codex, codearts, codearts-work, workbuddy, dsh, officeace, hermes, openclaw, atomcode, all',
       );
-      console.log('  --version    Print installed plugin version per agent');
+      console.log('  --version    Print CLI version and installed plugin version per agent');
       console.log('  --clean-kocli   (with: uninstall --target all) also remove KooCLI');
       console.log('  --clean-obs     (with: uninstall --target all) also remove OBS config');
       console.log('  --clean-global  (with: uninstall --target all) also remove KooCLI + OBS config');

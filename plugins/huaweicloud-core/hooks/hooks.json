@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/huaweicloud-safety.py\"",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/huaweicloud-safety.mjs\"",
             "timeout": 5
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/huaweicloud-safety.py\"",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/huaweicloud-safety.mjs\"",
             "timeout": 5
           }
         ]

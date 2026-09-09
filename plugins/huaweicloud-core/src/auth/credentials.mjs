@@ -272,10 +272,14 @@ export function readLastSync() {
   }
 }
 
-export function writeLastSync() {
+export function writeLastSync(metadata = {}) {
   const path = lastSyncPath();
   mkdirSync(dirname(path), { recursive: true });
-  const payload = { ts: Date.now() };
+  const payload = {
+    ts: Date.now(),
+    ...(metadata.kooCliProfile ? { kooCliProfile: String(metadata.kooCliProfile) } : {}),
+    ...(metadata.s1Fingerprint ? { s1Fingerprint: String(metadata.s1Fingerprint) } : {}),
+  };
   writeFileSync(path, JSON.stringify(payload), { encoding: 'utf8', mode: 0o600 });
   ensurePrivateMode(path);
 }

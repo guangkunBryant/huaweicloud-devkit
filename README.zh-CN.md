@@ -11,12 +11,6 @@
 
 支持 OpenCode、Codex、码道（CodeArts Agent）、WorkBuddy、DeepSeek Harness（DSH）、OfficeAce、Hermes、OpenClaw、AtomCode。
 
-## Cursor Directory 插件
-
-本仓库同时作为 [Open Plugins](https://open-plugins.com) 包挂载到 [Cursor Directory](https://cursor.directory) 市场。根目录的 `plugin.json`、`mcp.json`、`skills/`、`rules/` 仅用于 Cursor Directory 的仓库扫描发现，**不会**打入 npm 包（`package.json` 的 `files` 白名单未包含它们）。npm 包的 manifests 位于 `plugins/huaweicloud-core/`。
-
-`mcp.json` 中的 MCP 服务通过 `npx -y -p huaweicloud-devkit huaweicloud-devkit-mcp` 启动，跟踪的是 npm 的 `latest` tag。预发布阶段可能与 manifest 中的 `version` 不一致，稳定发版后可以固定版本。
-
 ## 前置条件
 
 - Node.js >= 22
@@ -28,13 +22,19 @@
 > ```
 >
 > 恢复默认镜像：`npm config delete registry`
+>
+> **镜像滞后**：npm 镜像（npmmirror、mirrors.huaweicloud.com）在新版本发布后可能滞后官方源数小时。若安装报 `ETARGET` 或拿到旧版本，改用官方源安装：
+>
+> ```bash
+> npx --yes --registry=https://registry.npmjs.org huaweicloud-devkit install --target <target>
+> ```
 
 ## 快速开始
 
 > 省略 `--target` 时，安装器会自动检测机器上的 agent，检测到多个时**全部安装**。建议始终指定 `--target` 以明确安装目标。
 
 ```bash
-npx --yes huaweicloud-devkit version  # 查看各 agent 已安装的插件版本
+npx --yes huaweicloud-devkit version  # 查看 CLI 版本和各 agent 已安装的插件版本
 npx --yes huaweicloud-devkit uninstall --target all --clean-global  # 一并删除 KooCLI 与 OBS 配置
 ```
 
@@ -63,13 +63,35 @@ npx --yes huaweicloud-devkit install --target codex
 安装后**重启 Codex 会话**。
 
 ```bash
+codex plugin list  # 验证 huaweicloud-devkit@huaweicloud-devkit 已安装并启用
 npx --yes huaweicloud-devkit doctor --target codex
 npx --yes huaweicloud-devkit status --target codex
 npx --yes huaweicloud-devkit update --target codex
 npx --yes huaweicloud-devkit uninstall --target codex
 ```
 
+随后在 Codex 中提及 `@huaweicloud-devkit`，或直接描述华为云任务。
+
 > **需要 Codex CLI** — `codex` 命令必须在 PATH 中。若 Codex 通过 WindowsApps（Microsoft Store）安装，请使用 `--target codex-desktop` 替代。运行 `codex --version` 验证 CLI 可用性。
+
+### Codex Desktop
+
+当 Codex CLI 不可用，或 Windows 上通过 WindowsApps 安装 Codex 时，使用此目标。
+
+```bash
+npx --yes huaweicloud-devkit install --target codex-desktop
+```
+
+安装后**重启 Codex Desktop 会话**。
+
+```bash
+npx --yes huaweicloud-devkit doctor --target codex-desktop
+npx --yes huaweicloud-devkit status --target codex-desktop
+npx --yes huaweicloud-devkit update --target codex-desktop
+npx --yes huaweicloud-devkit uninstall --target codex-desktop
+```
+
+随后在新的 Codex Desktop 任务中提及 `@huaweicloud-devkit`，或直接描述华为云任务。
 
 ### CodeArts Agent（码道）
 
@@ -226,6 +248,30 @@ npx --yes huaweicloud-devkit uninstall --target atomcode
 
 > 项目级 AK/SK 可通过 MCP 配置的 `env` 字段设置 `HW_ACCESS_KEY`/`HW_SECRET_KEY`。
 
+#### 通过 Remote（HTTP）连接
+
+若 Agent 支持 `type: "remote"`（Streamable HTTP）而非 stdio，可在本地先启动 devkit 的远程 MCP 服务器：
+
+```bash
+npx --yes huaweicloud-devkit-mcp --transport remote
+```
+
+默认监听 `127.0.0.1:9528`（与预置的 IACMCPServer 端口 9527 不冲突）。随后以远程方式连接（以 opencode 为例）：
+
+```jsonc
+{
+  "mcp": {
+    "huaweicloud-devkit": {
+      "type": "remote",
+      "url": "http://localhost:9528",
+      "enabled": true,
+    },
+  },
+}
+```
+
+> 端口被占用时用 `--port <端口>` 换端口，`url` 同步修改；需要局域网访问时加 `--host 0.0.0.0`。remote 服务器不内置鉴权，请勿匿名暴露到公网。
+
 ### 安装 KooCLI
 
 ```bash
@@ -249,10 +295,11 @@ npx --yes huaweicloud-devkit install --target all
 ### 更新所有 Agent
 
 ```bash
-npx --yes huaweicloud-devkit update --target all
+npx huaweicloud-devkit version
+npx --yes huaweicloud-devkit@latest update --target all
 ```
 
-`update` 是增量更新——只刷新已安装的文件，不动配置文件。
+`update` 是增量更新——只刷新已安装的文件，不动配置文件。请务必保留 `@latest`，确保 npm 获取最新版本而非本地缓存的旧版本。
 
 ## 功能特性
 

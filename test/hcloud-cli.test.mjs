@@ -58,6 +58,17 @@ test('planHcloudCommand marks write command as unsafe without approval', () => {
   assert.equal(plan.classification.decision, 'deny');
 });
 
+test('planHcloudCommand adds resource-manifest hint for OBS write operations', () => {
+  const plan = planHcloudCommand(['OBS', 'mb', 'obs://test-bucket', '-location=cn-north-4']);
+  assert.ok(plan.warnings.some((warning) => /resource manifest/i.test(warning)));
+  assert.equal(plan.classification.decision, 'deny');
+});
+
+test('planHcloudCommand adds no manifest hint for OBS read operations', () => {
+  const plan = planHcloudCommand(['OBS', 'ls']);
+  assert.ok(!plan.warnings.some((warning) => /resource manifest/i.test(warning)));
+});
+
 test('runHcloud retries transient network errors and reports retry count', async () => {
   const stateFile = join(mkdtempSync(join(tmpdir(), 'huaweicloud-toolkit-state-')), 'count.txt');
   const script = fakeHcloudScript(`

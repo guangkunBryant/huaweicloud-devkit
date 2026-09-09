@@ -37,6 +37,7 @@ function withTempHome(fn) {
     HUAWEICLOUD_REGION: process.env.HUAWEICLOUD_REGION,
     DSH_HOME: process.env.DSH_HOME,
     HCLOUD_BIN: process.env.HCLOUD_BIN,
+    HCLOUD_BIN_ARGS_JSON: process.env.HCLOUD_BIN_ARGS_JSON,
     HCLOUD_FAKE_LOG: process.env.HCLOUD_FAKE_LOG,
   };
   process.env.HUAWEICLOUD_HOME = dir;
@@ -47,6 +48,7 @@ function withTempHome(fn) {
   delete process.env.HUAWEICLOUD_REGION;
   delete process.env.DSH_HOME;
   delete process.env.HCLOUD_BIN;
+  delete process.env.HCLOUD_BIN_ARGS_JSON;
   delete process.env.HCLOUD_FAKE_LOG;
   try {
     return fn(dir);
@@ -105,7 +107,8 @@ test('writeObsConfig creates obsutilconfig content from vault', () => {
 
 test('auth sync writes OBS and reports all agent registration targets', () => {
   withTempHome((home) => {
-    process.env.HCLOUD_BIN = FAKE_HCLOUD;
+    process.env.HCLOUD_BIN = process.execPath;
+    process.env.HCLOUD_BIN_ARGS_JSON = JSON.stringify([FAKE_HCLOUD]);
     process.env.HCLOUD_FAKE_LOG = join(home, 'hcloud.log');
     mkdirSync(join(home, '.hcloud'), { recursive: true });
     writeFileSync(
@@ -420,10 +423,20 @@ test('resolveCredentials reads CodeArts credentials from CODEARTS_PROJECT_DIR', 
 test('last_sync write/read round-trip', () => {
   withTempHome((_home) => {
     assert.equal(readLastSync(), null);
-    writeLastSync();
+    writeLastSync({ kooCliProfile: 'deploy', s1Fingerprint: 'fp123456' });
     const sync = readLastSync();
     assert.ok(sync && typeof sync.ts === 'number');
+    assert.equal(sync.kooCliProfile, 'deploy');
+    assert.equal(sync.s1Fingerprint, 'fp123456');
     assert.ok(Date.now() - sync.ts < 5000);
+  });
+});
+
+test('last_sync old timestamp-only format remains readable', () => {
+  withTempHome((_home) => {
+    mkdirSync(join(process.env.HUAWEICLOUD_HOME, '.config', 'huaweicloud'), { recursive: true });
+    writeFileSync(join(process.env.HUAWEICLOUD_HOME, '.config', 'huaweicloud', '.last_sync'), '{"ts":12345}', 'utf8');
+    assert.deepEqual(readLastSync(), { ts: 12345 });
   });
 });
 

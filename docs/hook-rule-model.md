@@ -7,7 +7,7 @@ Huawei Cloud DevKit 安全模型由三层组成：**技能教学 → Hook 拦截
 ```
 Agent 生成命令/产物/部署计划
         │
-        ├── PreToolUse Hook (Python)     ← 实时拦截 Bash/hcloud 命令
+        ├── PreToolUse Hook (Node/Codex, Python/Hermes) ← 实时拦截 Bash/hcloud 命令
         │
         ├── huaweicloud_hook_check_*  ← MCP 工具，主动检查
         │   ├── command   → 检查计划执行的命令
@@ -29,18 +29,18 @@ Hook 系统强制以下隐私边界，禁止以下数据进入 agent 上下文�
 | **AK/SK 输出**       | `hcloud configure show`、`hcloud configure get`        | `policy.json` → `blockedConfigureSubcommands` |
 | **未经审批的写操作** | `Create*`、`Delete*`、`Bind*` 等 hcloud 命令           | `policy.json` → `writeOperationPrefixes`      |
 
-> **原则**：凭证、Token、密钥等敏感数据**不允许**以任何形式进入 agent 上下文。Agent 只能通过红act 后的工具输出获取必要信息。
+> **原则**：凭证、Token、密钥等敏感数据**不允许**以任何形式进入 agent 上下文。Agent 只能通过脱敏后的工具输出获取必要信息。
 
 ## 三层 Hook 机制
 
 ### 第 1 层：PreToolUse 实时拦截
 
-`hooks/huaweicloud-safety.py` 在每次 `Bash` 工具调用前执行，使用正则匹配拦截：
+Codex 原生插件通过 `hooks/huaweicloud-safety.mjs` 执行 PreToolUse 拦截，避免 Windows/Codex 环境依赖 `python3`。`hooks/huaweicloud-safety.py` 保留给 Hermes/Python hook 场景和既有兼容路径。Hook 使用共享策略拦截：
 
 - **凭证文件**：匹配 `.hcloud`、`.huaweicloud`、`hcloud/config` 等路径模式
 - **环境变量**：匹配 `env | HUAWEICLOUD` 等组合
 - **Secret 读取**：匹配 `ShowSecretVersion`、`secret_string` 等
-- **风险规则**：加载 `safety/rules/cloud-risk-rules.json`，对命令文本进行规则匹配
+- **风险规则**：加载 `safety/rules/cloud-risk-rules.json`，对 `hcloud` 命令和通用 shell 命令文本进行规则匹配
 
 拦截时返回 `permissionDecision: "deny"`，并附带 `permissionDecisionReason`。
 
@@ -89,7 +89,8 @@ Agent 在**执行前**应主动调用以下 MCP 工具进行风险检查：
 `src/risk-rule-engine.mjs` 实现了规则匹配引擎，被多个组件复用：
 
 - **MCP 工具**：`huaweicloud_hook_check_*` 调用 `evaluateCommandRisk` / `evaluateArtifacts` / `evaluateDeployPlan`
-- **Python Hook**：`huaweicloud-safety.py` 独立加载 `cloud-risk-rules.json` 进行匹配
+- **Node Hook**：`huaweicloud-safety.mjs` 通过 `src/safety-policy.mjs` 复用 `src/risk-rule-engine.mjs`，供 Codex 原生插件使用
+- **Python Hook**：`huaweicloud-safety.py` 独立加载 `cloud-risk-rules.json`，供 Hermes/Python hook 场景使用
 - **安全策略检查**：`src/safety-policy.mjs` 读取 `policy.json` 进行凭证/写操作分类
 
 三者共享同一套规则定义，确保策略一致性。

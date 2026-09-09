@@ -13,6 +13,8 @@ import { homedir, hostname, type as osType, networkInterfaces, release as osRele
 import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
+import { fetchWithProxy } from '../proxy/proxy-agent.mjs';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PLUGIN_DIR = join(__dirname, '..', '..');
@@ -56,6 +58,8 @@ const MAX_QUEUE_SIZE = 500;
 const FLUSH_INTERVAL_MS = 60_000;
 const BATCH_SIZE = 100;
 const FETCH_TIMEOUT_MS = 5000;
+const MAX_VALUE_LENGTH = 255;
+const MAX_RETRIES = 3;
 
 const DEFAULT_ENDPOINT = 'https://devkit.huaweicloud.com/rest/developer/server/hdkitservice/telemetry/events';
 
@@ -178,10 +182,19 @@ function capabilityFromKey(key) {
   return undefined;
 }
 
+export function sanitizeValue(value) {
+  if (typeof value !== 'string') value = value == null ? '' : String(value);
+  value = value.replace(/[\r\n\t]+/g, ' ').trim();
+  if (value.length > MAX_VALUE_LENGTH) {
+    value = value.slice(0, MAX_VALUE_LENGTH - 3) + '...';
+  }
+  return value;
+}
+
 function buildEvent(raw) {
   const event = {
     key: raw.key,
-    value: raw.value,
+    value: sanitizeValue(raw.value),
     installId: installId,
     userHash: userHash,
     version: PLUGIN_VERSION,
@@ -300,6 +313,13 @@ export function cacheUserHash(hash) {
   writeTextFile(USER_HASH_PATH, hash);
 }
 
+export function clearUserHash() {
+  userHash = null;
+  try {
+    unlinkSync(USER_HASH_PATH);
+  } catch {}
+}
+
 function flushEvents() {
   if (isFlushing) return;
   if (eventQueue.length === 0) return;
@@ -315,10 +335,10 @@ function flushEvents() {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-  fetch(endpoint, {
+  fetchWithProxy(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(batch),
+    body: JSON.stringify(batch.map(({ _retries, ...rest }) => rest)),
     signal: controller.signal,
   })
     .then((resp) => {
@@ -330,17 +350,33 @@ function flushEvents() {
           if (event.key === 'plugin:install') touchFile(installStampPath());
           if (event.key === 'plugin:first_use') touchFile(firstUseStampPath());
         }
+      } else if (resp.status >= 400 && resp.status < 500) {
+        debugLog(`POST status=${resp.status} dropping ${batch.length} events (client error)`);
       } else {
-        eventQueue = [...batch, ...eventQueue];
+        requeueEvents(batch);
       }
       isFlushing = false;
     })
     .catch((error) => {
       clearTimeout(timer);
       debugLog(`POST FAIL err=${error.message} events=${batch.length}`);
-      eventQueue = [...batch, ...eventQueue];
+      requeueEvents(batch);
       isFlushing = false;
     });
+}
+
+function requeueEvents(batch) {
+  const kept = [];
+  for (const event of batch) {
+    const retries = event._retries || 0;
+    if (retries >= MAX_RETRIES) {
+      debugLog(`DROP event key=${event.key} after ${MAX_RETRIES} retries`);
+      continue;
+    }
+    event._retries = retries + 1;
+    kept.push(event);
+  }
+  if (kept.length > 0) eventQueue = [...kept, ...eventQueue];
 }
 
 export function initTelemetry({ harness, version }) {

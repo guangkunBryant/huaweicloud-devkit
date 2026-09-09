@@ -88,7 +88,7 @@ hcloud FunctionGraph CreateFunctionTrigger \
   --trigger_status=ACTIVE \
   --event_data.name=test-timer \
   --event_data.schedule_type=Rate \
-  --event_data.schedule="5m"
+  --event_data.schedule="1m"
 ```
 
 ## DEDICATEDGATEWAY Pre-Flight Checklist

@@ -1,15 +1,23 @@
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import test from 'node:test';
 
-function mkShim(dir, nodeScript) {
-  const shim = join(dir, 'hcloud-shim');
-  writeFileSync(shim, `#!/bin/bash\nexec ${process.execPath} ${nodeScript} "$@"`, 'utf8');
-  chmodSync(shim, 0o755);
-  return shim;
+function setFakeHcloud(nodeScript) {
+  const oldEnv = {
+    HCLOUD_BIN: process.env.HCLOUD_BIN,
+    HCLOUD_BIN_ARGS_JSON: process.env.HCLOUD_BIN_ARGS_JSON,
+  };
+  process.env.HCLOUD_BIN = process.execPath;
+  process.env.HCLOUD_BIN_ARGS_JSON = JSON.stringify([nodeScript]);
+  return () => {
+    if (oldEnv.HCLOUD_BIN === undefined) delete process.env.HCLOUD_BIN;
+    else process.env.HCLOUD_BIN = oldEnv.HCLOUD_BIN;
+    if (oldEnv.HCLOUD_BIN_ARGS_JSON === undefined) delete process.env.HCLOUD_BIN_ARGS_JSON;
+    else process.env.HCLOUD_BIN_ARGS_JSON = oldEnv.HCLOUD_BIN_ARGS_JSON;
+  };
 }
 
 test('preflightSecurityGroupCheck catches dangerous SG via --server.security_groups.N.id (B1+B2 fix)', async () => {
@@ -34,9 +42,7 @@ console.log(JSON.stringify({
     'utf8',
   );
 
-  const shim = mkShim(dir, script);
-  const oldEnv = process.env.HCLOUD_BIN;
-  process.env.HCLOUD_BIN = shim;
+  const restoreHcloud = setFakeHcloud(script);
 
   try {
     const { planHcloudCommand } = await import('../plugins/huaweicloud-core/src/hcloud-cli.mjs');
@@ -59,7 +65,7 @@ console.log(JSON.stringify({
     assert.match(plan.sgFindings[0].message, /22/);
     assert.match(plan.sgFindings[0].message, /77216397/);
   } finally {
-    process.env.HCLOUD_BIN = oldEnv;
+    restoreHcloud();
     try {
       require('node:fs').rmSync(dir, { recursive: true, force: true });
     } catch {}
@@ -88,9 +94,7 @@ console.log(JSON.stringify({
     'utf8',
   );
 
-  const shim = mkShim(dir, script);
-  const oldEnv = process.env.HCLOUD_BIN;
-  process.env.HCLOUD_BIN = shim;
+  const restoreHcloud = setFakeHcloud(script);
 
   try {
     const { planHcloudCommand } = await import('../plugins/huaweicloud-core/src/hcloud-cli.mjs');
@@ -111,7 +115,7 @@ console.log(JSON.stringify({
     assert.equal(plan.sgFindings.length, 0, 'egress rules should be ignored');
     assert.equal(plan.classification.decision, 'allow');
   } finally {
-    process.env.HCLOUD_BIN = oldEnv;
+    restoreHcloud();
     try {
       require('node:fs').rmSync(dir, { recursive: true, force: true });
     } catch {}
@@ -140,9 +144,7 @@ console.log(JSON.stringify({
     'utf8',
   );
 
-  const shim = mkShim(dir, script);
-  const oldEnv = process.env.HCLOUD_BIN;
-  process.env.HCLOUD_BIN = shim;
+  const restoreHcloud = setFakeHcloud(script);
 
   try {
     const { planHcloudCommand } = await import('../plugins/huaweicloud-core/src/hcloud-cli.mjs');
@@ -163,7 +165,7 @@ console.log(JSON.stringify({
     assert.ok(plan.sgFindings.length > 0, 'old format should still work');
     assert.equal(plan.classification.decision, 'deny');
   } finally {
-    process.env.HCLOUD_BIN = oldEnv;
+    restoreHcloud();
     try {
       require('node:fs').rmSync(dir, { recursive: true, force: true });
     } catch {}
