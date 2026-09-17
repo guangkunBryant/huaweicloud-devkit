@@ -64,16 +64,16 @@ Domain expertise for Huawei Cloud Sandbox (DevStation) instances and workspace t
 
 ### Terminal Execution
 
-| Tool                                    | Purpose                                                                     |
-| --------------------------------------- | --------------------------------------------------------------------------- |
-| `huaweicloud_sandbox_exec_with_session` | Session-based execution (state persists; best for interactive work)         |
-| `huaweicloud_sandbox_exec_one_shot`     | One-shot execution (fresh connection; best for long/heavy commands)         |
-| `huaweicloud_sandbox_upload_file`       | Upload a local file into the sandbox (chunked base64 write + md5 verify)    |
-| `huaweicloud_sandbox_upload_project`    | Upload a local project directory to sandbox (HTTP tunnel, tar.gz + extract) |
-| `huaweicloud_sandbox_deploy_nginx`      | Deploy nginx config with permissions fix and reload in one call             |
-| `huaweicloud_sandbox_deploy_check`      | Run deployment completeness check (nginx, DevBridge, URL, QR if needed)     |
-| `huaweicloud_sandbox_diag_chain`       | One-click chain diagnostic (tunnel→proxy→backend) with per-hop status+latency |
-| `huaweicloud_sandbox_close_session`     | Close a persistent terminal session                                         |
+| Tool                                    | Purpose                                                                       |
+| --------------------------------------- | ----------------------------------------------------------------------------- |
+| `huaweicloud_sandbox_exec_with_session` | Session-based execution (state persists; best for interactive work)           |
+| `huaweicloud_sandbox_exec_one_shot`     | One-shot execution (fresh connection; best for long/heavy commands)           |
+| `huaweicloud_sandbox_upload_file`       | Upload a local file into the sandbox (chunked base64 write + md5 verify)      |
+| `huaweicloud_sandbox_upload_project`    | Upload a local project directory to sandbox (HTTP tunnel, tar.gz + extract)   |
+| `huaweicloud_sandbox_deploy_nginx`      | Deploy nginx config with permissions fix and reload in one call               |
+| `huaweicloud_sandbox_deploy_check`      | Run deployment completeness check (nginx, DevBridge, URL, QR if needed)       |
+| `huaweicloud_sandbox_diag_chain`        | One-click chain diagnostic (tunnel→proxy→backend) with per-hop status+latency |
+| `huaweicloud_sandbox_close_session`     | Close a persistent terminal session                                           |
 
 ### Tool Selection Guide
 

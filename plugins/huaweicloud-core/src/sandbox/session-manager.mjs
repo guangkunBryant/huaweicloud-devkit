@@ -870,7 +870,9 @@ function stripTerminalAnsi(output) {
   const ESC = '\x1b';
   const csiRe = new RegExp(ESC + '\\[[0-9;]*[a-zA-Z]', 'g');
   const oscRe = new RegExp(ESC + '\\][^' + ESC + '\x07]*(?:\x07|' + ESC + '\\\\)', 'g');
-  return String(output || '').replace(csiRe, '').replace(oscRe, '');
+  return String(output || '')
+    .replace(csiRe, '')
+    .replace(oscRe, '');
 }
 
 function shq(value) {
@@ -949,9 +951,7 @@ export async function diagChain(workspaceId, { hops }, username = 'root', timeou
         `fi`,
       );
     } else {
-      throw new Error(
-        `sandbox chain diag: hop "${hop.name}" has unsupported kind "${kind}" (use "http" or "shell").`,
-      );
+      throw new Error(`sandbox chain diag: hop "${hop.name}" has unsupported kind "${kind}" (use "http" or "shell").`);
     }
   }
   lines.push('echo "VERDICT:COMPLETE"');

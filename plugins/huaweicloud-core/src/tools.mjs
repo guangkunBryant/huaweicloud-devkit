@@ -755,7 +755,8 @@ export const TOOL_DEFINITIONS = [
               kind: {
                 type: 'string',
                 enum: ['http', 'shell'],
-                description: 'http (default) curls `target` and records status code + latency; shell runs `target` as a command, PASS on exit 0.',
+                description:
+                  'http (default) curls `target` and records status code + latency; shell runs `target` as a command, PASS on exit 0.',
               },
               target: { type: 'string', description: 'For http: a URL to probe. For shell: a shell command to run.' },
               expect: {
@@ -1451,12 +1452,7 @@ export async function callTool(name, rawArgs = {}, opts = {}) {
             'or set HW_WORKSPACE_ID environment variable before starting the agent.',
         );
       }
-      return await diagChain(
-        diagWsId,
-        { hops: args.hops },
-        args.username || 'root',
-        args.timeout_ms || 30000,
-      );
+      return await diagChain(diagWsId, { hops: args.hops }, args.username || 'root', args.timeout_ms || 30000);
     }
     case 'huaweicloud_sandbox_check_user':
       return await hdkitCheckUser();
