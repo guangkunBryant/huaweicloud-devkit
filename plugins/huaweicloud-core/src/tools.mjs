@@ -2050,7 +2050,7 @@ function serviceCatalog(intent = '') {
     },
     {
       keywords: ['apig', 'api gateway', 'publish', 'throttle', 'API网关', '限流'],
-      skills: ['huawei-apig'],
+      skills: ['huawei-cloud-apig-instance-management'],
       services: ['APIG'],
     },
     {
@@ -2060,7 +2060,7 @@ function serviceCatalog(intent = '') {
     },
     {
       keywords: ['gaussdb', 'distributed', 'sharding', 'opengauss', '高斯数据库', '分布式数据库'],
-      skills: ['huawei-gaussdb'],
+      skills: ['huawei-cloud-gaussdb-instance-management'],
       services: ['GaussDB'],
     },
     {
@@ -2102,7 +2102,7 @@ function serviceCatalog(intent = '') {
         '证书',
         '凭据管理',
       ],
-      skills: ['huawei-dew'],
+      skills: ['huawei-cloud-dew-key-management'],
       services: ['CSMS', 'KMS'],
     },
     {
@@ -2117,12 +2117,12 @@ function serviceCatalog(intent = '') {
     },
     {
       keywords: ['waf', 'aad', 'ddos', 'firewall', 'web protection'],
-      skills: ['huawei-waf-aad'],
+      skills: ['huawei-cloud-waf-aad-rule-management'],
       services: ['WAF', 'AAD'],
     },
     {
       keywords: ['smn', 'dms', 'notification', 'message', 'kafka', 'rabbitmq'],
-      skills: ['huawei-smn-dms'],
+      skills: ['huawei-cloud-smn-dms-message'],
       services: ['SMN', 'DMS'],
     },
     {
@@ -2130,7 +2130,7 @@ function serviceCatalog(intent = '') {
       skills: ['huawei-cloud-eye'],
       services: ['CES'],
     },
-    { keywords: ['cts', 'audit', 'trace', 'tracker', '审计', '追踪'], skills: ['huawei-cts'], services: ['CTS'] },
+    { keywords: ['cts', 'audit', 'trace', 'tracker', '审计', '追踪'], skills: ['huawei-cloud-cts-trace-management'], services: ['CTS'] },
     {
       keywords: ['cbr', 'backup', 'restore', 'vault', 'snapshot', '备份', '恢复', '快照', '存储库'],
       skills: ['huawei-cbr'],
@@ -2138,7 +2138,7 @@ function serviceCatalog(intent = '') {
     },
     {
       keywords: ['deployment', 'deploy', 'ci/cd', 'pipeline', 'release'],
-      skills: ['huawei-deployment'],
+      skills: ['huawei-cloud-deployment-task-management'],
       services: ['CloudDeploy'],
     },
     {
@@ -2173,7 +2173,7 @@ function serviceCatalog(intent = '') {
         '缓存',
         '内存数据库',
       ],
-      skills: ['huawei-dds-dcs'],
+      skills: ['huawei-cloud-dds-dcs-instance-management'],
       services: ['DDS', 'DCS'],
     },
     {
