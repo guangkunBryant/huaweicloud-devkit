@@ -18,6 +18,7 @@ tags: [huawei-cloud, cts, audit, tracker, trace]
 # Huawei Cloud CTS (Cloud Trace Service)
 
 <!-- cli-install-version: 3.9.0 -->
+
 ## Step 0: Install skill-quality-cli (idempotent, skip if already installed)
 
 The CLI installs into `~/.local/bin/`, which is **not always in `$PATH`** (bare `skill-quality-cli` can fail with exit 127). Export it first, then run the installer
@@ -41,11 +42,11 @@ This skill operates Huawei Cloud CTS (Cloud Trace Service / 云审计服务) thr
 CTS records operation traces (audit events) of cloud resources for security compliance, fault tracing,
 and change auditing. The skill covers:
 
-| Category | Capabilities |
-|----------|--------------|
-| **Query** | List trackers (`huawei_list_cts_trackers`), query audit traces (`huawei_list_cts_traces`), list cloud service operations (`huawei_list_cts_operations`), list key event notifications (`huawei_list_cts_notifications`), list trace resources (`huawei_list_cts_trace_resources`) |
-| **Diagnose** | Aggregate audit events by user/time/operation (`huawei_analyze_cts_traces`), evaluate retention & compliance (`huawei_analyze_cts_retention`) |
-| **Manage** | Create tracker (`huawei_create_cts_tracker`), create notification (`huawei_create_cts_notification`), delete tracker (`huawei_delete_cts_tracker`) |
+| Category     | Capabilities                                                                                                                                                                                                                                                                      |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Query**    | List trackers (`huawei_list_cts_trackers`), query audit traces (`huawei_list_cts_traces`), list cloud service operations (`huawei_list_cts_operations`), list key event notifications (`huawei_list_cts_notifications`), list trace resources (`huawei_list_cts_trace_resources`) |
+| **Diagnose** | Aggregate audit events by user/time/operation (`huawei_analyze_cts_traces`), evaluate retention & compliance (`huawei_analyze_cts_retention`)                                                                                                                                     |
+| **Manage**   | Create tracker (`huawei_create_cts_tracker`), create notification (`huawei_create_cts_notification`), delete tracker (`huawei_delete_cts_tracker`)                                                                                                                                |
 
 > **Always run `hcloud CTS <Operation> --cli-region={region} --help` before constructing a command**
 > to discover the exact parameter names and required flags for the current KooCLI version.
@@ -53,12 +54,12 @@ and change auditing. The skill covers:
 
 ### Critical Warnings
 
-| Trap | Why |
-|------|-----|
-| **Tracker required for traces** | Audit traces are only recorded after a tracker exists. No tracker → no events. Check `ListTrackers` first. |
-| **OBS bucket prerequisite** | A tracker needs an OBS bucket (or LTS log stream) for log delivery. Creation fails if the bucket is missing or lacks permissions. |
-| **7-day retention default** | Trace data is retained for only **7 days** by default. Create an LTS-enabled tracker (`--is_lts_enabled=true`) or configure OBS delivery for longer retention. |
-| **Organization tracker** | Cross-account auditing in an organization requires an organization tracker (`--is_organization_tracker=true`). A normal tracker only covers the current account. |
+| Trap                            | Why                                                                                                                                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Tracker required for traces** | Audit traces are only recorded after a tracker exists. No tracker → no events. Check `ListTrackers` first.                                                       |
+| **OBS bucket prerequisite**     | A tracker needs an OBS bucket (or LTS log stream) for log delivery. Creation fails if the bucket is missing or lacks permissions.                                |
+| **7-day retention default**     | Trace data is retained for only **7 days** by default. Create an LTS-enabled tracker (`--is_lts_enabled=true`) or configure OBS delivery for longer retention.   |
+| **Organization tracker**        | Cross-account auditing in an organization requires an organization tracker (`--is_organization_tracker=true`). A normal tracker only covers the current account. |
 
 ## Prerequisites
 
@@ -75,12 +76,12 @@ and change auditing. The skill covers:
 
 ### Quality Reporting Environment Variables
 
-| Environment Variable | Required | Description |
-|---------------------|----------|-------------|
-| `SKILL_QUALITY_ENDPOINT` | No | Report endpoint, default `https://skillsapi.developer.myhuaweicloud.com/api/quality/report` |
-| `SKILL_QUALITY_NAME` | No | Skill name (default auto-detected) |
-| `SKILL_QUALITY_DISABLE` | No | Set to `1` to disable reporting (local debugging) |
-| `SKILL_QUALITY_TIMEOUT` | No | Report timeout seconds (default 3) |
+| Environment Variable     | Required | Description                                                                                 |
+| ------------------------ | -------- | ------------------------------------------------------------------------------------------- |
+| `SKILL_QUALITY_ENDPOINT` | No       | Report endpoint, default `https://skillsapi.developer.myhuaweicloud.com/api/quality/report` |
+| `SKILL_QUALITY_NAME`     | No       | Skill name (default auto-detected)                                                          |
+| `SKILL_QUALITY_DISABLE`  | No       | Set to `1` to disable reporting (local debugging)                                           |
+| `SKILL_QUALITY_TIMEOUT`  | No       | Report timeout seconds (default 3)                                                          |
 
 ## Workflow
 
@@ -225,17 +226,17 @@ Values in `{}` are placeholders — replace with real values. **Do not invent pa
 Every user-supplied parameter value MUST pass a whitelist/type check before it is passed to `hcloud`.
 Illegal input is **rejected outright** (never forwarded to the CLI, never interpolated into a command):
 
-| Parameter | Whitelist / type check | Invalid input handling |
-|-----------|------------------------|------------------------|
-| `--cli-region` | string; must be a real Huawei Cloud region code (e.g. `cn-north-4`) | reject, ask for a valid region |
-| `--trace_type` | enum: `system` \| `data` | reject anything else |
-| `--notification_type` | enum: `smn` \| `fun` | reject anything else |
-| `--tracker_type` | enum: `system` \| `data` | reject anything else |
-| `--operation_type` | enum: `complete` \| `customized` | reject anything else |
-| `--trace_rating` | enum: `normal` \| `warning` \| `incident` | reject anything else |
-| `--limit` | integer, 1–200 | reject non-integer / out-of-range |
-| `--from` / `--to` | 13-digit integer (epoch ms), used together | reject malformed / mismatched pairs |
-| `--project_id` / `--domain_id` | 32-hex-char string | reject anything else |
+| Parameter                                                                               | Whitelist / type check                                                                                                 | Invalid input handling                     |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `--cli-region`                                                                          | string; must be a real Huawei Cloud region code (e.g. `cn-north-4`)                                                    | reject, ask for a valid region             |
+| `--trace_type`                                                                          | enum: `system` \| `data`                                                                                               | reject anything else                       |
+| `--notification_type`                                                                   | enum: `smn` \| `fun`                                                                                                   | reject anything else                       |
+| `--tracker_type`                                                                        | enum: `system` \| `data`                                                                                               | reject anything else                       |
+| `--operation_type`                                                                      | enum: `complete` \| `customized`                                                                                       | reject anything else                       |
+| `--trace_rating`                                                                        | enum: `normal` \| `warning` \| `incident`                                                                              | reject anything else                       |
+| `--limit`                                                                               | integer, 1–200                                                                                                         | reject non-integer / out-of-range          |
+| `--from` / `--to`                                                                       | 13-digit integer (epoch ms), used together                                                                             | reject malformed / mismatched pairs        |
+| `--project_id` / `--domain_id`                                                          | 32-hex-char string                                                                                                     | reject anything else                       |
 | `--tracker_name`, `--notification_name`, `--topic_id`, `--polling` (any name/URN value) | plain string; no spaces, no shell metacharacters (semicolon, ampersand, dollar sign, backtick, quotes, angle brackets) | reject if it contains shell metacharacters |
 
 Rule: if a value fails its whitelist/type check, return a `U` (user input) error and do **not**
@@ -243,101 +244,101 @@ execute the command. Never echo caller input into a command line without validat
 
 ### ListOperations
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `--project_id` | Yes | string | Project ID (path) |
-| `--resource_type` | No | string | Resource type; if used, `--service_type` is mandatory |
-| `--service_type` | No | string | Cloud service type (e.g. ECS) |
+| Parameter         | Required | Type   | Description                                           |
+| ----------------- | -------- | ------ | ----------------------------------------------------- |
+| `--project_id`    | Yes      | string | Project ID (path)                                     |
+| `--resource_type` | No       | string | Resource type; if used, `--service_type` is mandatory |
+| `--service_type`  | No       | string | Cloud service type (e.g. ECS)                         |
 
 ### ListTraces
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `--project_id` | Yes | string | Project ID (path) |
-| `--trace_type` | Yes | string | Trace type: `system` (default) or `data` |
-| `--from` / `--to` | No | integer | UTC ms timestamps (13 digits), used together; default = last hour → now |
-| `--limit` | No | integer | Number of traces, default 10, max 200 |
-| `--next` | No | string | Pagination marker (value of `marker` in response) |
-| `--user` | No | string | User name filter (system traces only) |
-| `--service_type` | No | string | Cloud service acronym filter (system traces only) |
-| `--resource_id` / `--resource_name` / `--resource_type` | No | string | Resource filters (system traces only) |
-| `--trace_id` | No | string | Trace ID; if set, other criteria are ignored |
-| `--trace_name` | No | string | Trace name (system traces only) |
-| `--trace_rating` | No | string | Trace status: `normal` \| `warning` \| `incident` |
-| `--tracker_name` | No | string | System traces: `system`; data traces: data tracker name |
-| `--enterprise_project_id` | No | string | Enterprise project filter |
-| `--access_key_id` | No | string | Access key used to query traces |
+| Parameter                                               | Required | Type    | Description                                                             |
+| ------------------------------------------------------- | -------- | ------- | ----------------------------------------------------------------------- |
+| `--project_id`                                          | Yes      | string  | Project ID (path)                                                       |
+| `--trace_type`                                          | Yes      | string  | Trace type: `system` (default) or `data`                                |
+| `--from` / `--to`                                       | No       | integer | UTC ms timestamps (13 digits), used together; default = last hour → now |
+| `--limit`                                               | No       | integer | Number of traces, default 10, max 200                                   |
+| `--next`                                                | No       | string  | Pagination marker (value of `marker` in response)                       |
+| `--user`                                                | No       | string  | User name filter (system traces only)                                   |
+| `--service_type`                                        | No       | string  | Cloud service acronym filter (system traces only)                       |
+| `--resource_id` / `--resource_name` / `--resource_type` | No       | string  | Resource filters (system traces only)                                   |
+| `--trace_id`                                            | No       | string  | Trace ID; if set, other criteria are ignored                            |
+| `--trace_name`                                          | No       | string  | Trace name (system traces only)                                         |
+| `--trace_rating`                                        | No       | string  | Trace status: `normal` \| `warning` \| `incident`                       |
+| `--tracker_name`                                        | No       | string  | System traces: `system`; data traces: data tracker name                 |
+| `--enterprise_project_id`                               | No       | string  | Enterprise project filter                                               |
+| `--access_key_id`                                       | No       | string  | Access key used to query traces                                         |
 
 ### CreateTracker
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `--project_id` | Yes | string | Project ID (path) |
-| `--tracker_name` | Yes | string | Tracker name (default `system` for system type) |
-| `--tracker_type` | Yes | string | `system` (management tracker) or `data` (data tracker) |
-| `--obs_info.bucket_name` | No* | string | OBS bucket for log delivery (*needed for OBS delivery) |
-| `--obs_info.is_obs_created` | No | boolean | `true` = create new bucket, `false` = use existing |
-| `--obs_info.file_prefix_name` | No | string | File name prefix for OBS trace files |
-| `--obs_info.compress_type` | No | string | `gzip` (default) or `json` |
-| `--obs_info.bucket_lifecycle` | No | integer | Retention days in OBS bucket (data tracker only) |
-| `--obs_info.is_sort_by_service` | No | boolean | Sort transfer path by cloud service (default true) |
-| `--is_lts_enabled` | No | boolean | Enable LTS trace analysis (long retention) |
-| `--is_organization_tracker` | No | boolean | `true` = org tracker (cross-account dumps) |
-| `--is_support_trace_files_encryption` | No | boolean | Encrypt OBS trace files (with `--kms_id`) |
-| `--kms_id` | No | string | KMS key ID (mandatory when encryption enabled) |
-| `--is_support_validate` | No | boolean | Enable trace file verification |
-| `--agency_name` | No | string | `cts_admin_trust` auto-creates the cloud service agency |
-| `--data_bucket.data_bucket_name` | No | string | Bucket tracked by a data tracker |
-| `--data_bucket.data_event.1` | No | array | Data tracker events: `WRITE` \| `READ` |
-| `--management_event_selector.exclude_service.1` | No | array | Services excluded from dump (currently only KMS) |
+| Parameter                                       | Required | Type    | Description                                             |
+| ----------------------------------------------- | -------- | ------- | ------------------------------------------------------- |
+| `--project_id`                                  | Yes      | string  | Project ID (path)                                       |
+| `--tracker_name`                                | Yes      | string  | Tracker name (default `system` for system type)         |
+| `--tracker_type`                                | Yes      | string  | `system` (management tracker) or `data` (data tracker)  |
+| `--obs_info.bucket_name`                        | No*      | string  | OBS bucket for log delivery (*needed for OBS delivery)  |
+| `--obs_info.is_obs_created`                     | No       | boolean | `true` = create new bucket, `false` = use existing      |
+| `--obs_info.file_prefix_name`                   | No       | string  | File name prefix for OBS trace files                    |
+| `--obs_info.compress_type`                      | No       | string  | `gzip` (default) or `json`                              |
+| `--obs_info.bucket_lifecycle`                   | No       | integer | Retention days in OBS bucket (data tracker only)        |
+| `--obs_info.is_sort_by_service`                 | No       | boolean | Sort transfer path by cloud service (default true)      |
+| `--is_lts_enabled`                              | No       | boolean | Enable LTS trace analysis (long retention)              |
+| `--is_organization_tracker`                     | No       | boolean | `true` = org tracker (cross-account dumps)              |
+| `--is_support_trace_files_encryption`           | No       | boolean | Encrypt OBS trace files (with `--kms_id`)               |
+| `--kms_id`                                      | No       | string  | KMS key ID (mandatory when encryption enabled)          |
+| `--is_support_validate`                         | No       | boolean | Enable trace file verification                          |
+| `--agency_name`                                 | No       | string  | `cts_admin_trust` auto-creates the cloud service agency |
+| `--data_bucket.data_bucket_name`                | No       | string  | Bucket tracked by a data tracker                        |
+| `--data_bucket.data_event.1`                    | No       | array   | Data tracker events: `WRITE` \| `READ`                  |
+| `--management_event_selector.exclude_service.1` | No       | array   | Services excluded from dump (currently only KMS)        |
 
 ### ListTrackers
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `--project_id` | Yes | string | Project ID (path) |
-| `--tracker_name` | No | string | Tracker name; omitted → all trackers |
-| `--tracker_type` | No | string | `system` or `data` |
+| Parameter        | Required | Type   | Description                          |
+| ---------------- | -------- | ------ | ------------------------------------ |
+| `--project_id`   | Yes      | string | Project ID (path)                    |
+| `--tracker_name` | No       | string | Tracker name; omitted → all trackers |
+| `--tracker_type` | No       | string | `system` or `data`                   |
 
 ### DeleteTracker
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `--project_id` | Yes | string | Project ID (path) |
-| `--tracker_name` | No | string | Tracker name; omitted → all data trackers |
-| `--tracker_type` | No | string | `data` (default) or `system` |
+| Parameter        | Required | Type   | Description                               |
+| ---------------- | -------- | ------ | ----------------------------------------- |
+| `--project_id`   | Yes      | string | Project ID (path)                         |
+| `--tracker_name` | No       | string | Tracker name; omitted → all data trackers |
+| `--tracker_type` | No       | string | `data` (default) or `system`              |
 
 ### CreateNotification
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `--project_id` | Yes | string | Project ID (path) |
-| `--notification_name` | Yes | string | Notification name |
-| `--operation_type` | Yes | string | `complete` (all operations) or `customized` |
-| `--topic_id` | No | string | SMN topic URN or FunctionGraph function URN |
-| `--agency_name` | No | string | `cts_admin_trust` auto-creates agency |
-| `--operations.1.service_type` | No | string | Cloud service acronym (customized type) |
-| `--operations.1.resource_type` | No | string | Resource type (customized type) |
-| `--operations.1.trace_names.1` | No | array | Trace names (customized type) |
-| `--notify_user_list.1.user_group` | No | string | IAM user group |
-| `--notify_user_list.1.user_list.1` | No | array | IAM users |
-| `--filter.is_support_filter` | No | boolean | Enable advanced filter |
-| `--filter.condition` | No | string | `AND` or `OR` between filter rules |
-| `--filter.rule.1` | No | array | Filter rule, format `field rule value` (fields: api_version, code, trace_rating, trace_type, resource_id, resource_name) |
+| Parameter                          | Required | Type    | Description                                                                                                              |
+| ---------------------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `--project_id`                     | Yes      | string  | Project ID (path)                                                                                                        |
+| `--notification_name`              | Yes      | string  | Notification name                                                                                                        |
+| `--operation_type`                 | Yes      | string  | `complete` (all operations) or `customized`                                                                              |
+| `--topic_id`                       | No       | string  | SMN topic URN or FunctionGraph function URN                                                                              |
+| `--agency_name`                    | No       | string  | `cts_admin_trust` auto-creates agency                                                                                    |
+| `--operations.1.service_type`      | No       | string  | Cloud service acronym (customized type)                                                                                  |
+| `--operations.1.resource_type`     | No       | string  | Resource type (customized type)                                                                                          |
+| `--operations.1.trace_names.1`     | No       | array   | Trace names (customized type)                                                                                            |
+| `--notify_user_list.1.user_group`  | No       | string  | IAM user group                                                                                                           |
+| `--notify_user_list.1.user_list.1` | No       | array   | IAM users                                                                                                                |
+| `--filter.is_support_filter`       | No       | boolean | Enable advanced filter                                                                                                   |
+| `--filter.condition`               | No       | string  | `AND` or `OR` between filter rules                                                                                       |
+| `--filter.rule.1`                  | No       | array   | Filter rule, format `field rule value` (fields: api_version, code, trace_rating, trace_type, resource_id, resource_name) |
 
 ### ListNotifications
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `--project_id` | Yes | string | Project ID (path) |
-| `--notification_type` | Yes | string | `smn` or `fun` (path param) |
-| `--notification_name` | No | string | Notification name; omitted → all notifications |
+| Parameter             | Required | Type   | Description                                    |
+| --------------------- | -------- | ------ | ---------------------------------------------- |
+| `--project_id`        | Yes      | string | Project ID (path)                              |
+| `--notification_type` | Yes      | string | `smn` or `fun` (path param)                    |
+| `--notification_name` | No       | string | Notification name; omitted → all notifications |
 
 ### ListTraceResources
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `--domain_id` | Yes | string | Account (domain) ID — **not** project ID |
+| Parameter     | Required | Type   | Description                              |
+| ------------- | -------- | ------ | ---------------------------------------- |
+| `--domain_id` | Yes      | string | Account (domain) ID — **not** project ID |
 
 ## Quality Reporting
 
@@ -353,28 +354,28 @@ main flow. Disable via `SKILL_QUALITY_DISABLE=1` for local testing.
 
 ### Error Code Convention
 
-| Prefix | Category | Examples |
-|--------|----------|---------|
-| U | User input | U01 missing param, U03 no data found |
-| C | Configuration | C01 missing AK/SK/env, C02 missing project_id |
-| N | Network | N01 timeout, N02 connection refused |
-| B | Code bug | B01 null pointer, B04 version mismatch |
-| P | Platform | P01 scheduler error, P02 resource insufficient |
+| Prefix | Category      | Examples                                       |
+| ------ | ------------- | ---------------------------------------------- |
+| U      | User input    | U01 missing param, U03 no data found           |
+| C      | Configuration | C01 missing AK/SK/env, C02 missing project_id  |
+| N      | Network       | N01 timeout, N02 connection refused            |
+| B      | Code bug      | B01 null pointer, B04 version mismatch         |
+| P      | Platform      | P01 scheduler error, P02 resource insufficient |
 
 ## KooCLI Command Format Standard
 
 The generic invocation shape is `hcloud <service> <Operation> --cli-region=<region> [--key=value ...]`
 — this is a **format description only**: `<...>` and `[--key=value]` are placeholders, never executed verbatim.
 
-| Feature | Rule | Example |
-|---------|------|---------|
-| Service name | `CTS` (metadata directory `cts`; case-insensitive for invocation) | `hcloud CTS ListTrackers` |
-| Operation name | PascalCase | `ListTrackers`, `CreateTracker` |
-| Region parameter | `--cli-region=<value>` always included | `--cli-region=cn-north-4` |
-| Simple parameter | `--key=value` | `--project_id=xxx` |
-| Indexed parameter | `--key.1=value1` | `--operations.1.service_type=ECS` |
-| Nested parameter | `--parent.child=value` | `--obs_info.bucket_name=xxx` |
-| Verification | Run `--help` first; parameter names come from `--help` output only | `hcloud CTS ListTraces --cli-region=cn-north-4 --help` |
+| Feature           | Rule                                                               | Example                                                |
+| ----------------- | ------------------------------------------------------------------ | ------------------------------------------------------ |
+| Service name      | `CTS` (metadata directory `cts`; case-insensitive for invocation)  | `hcloud CTS ListTrackers`                              |
+| Operation name    | PascalCase                                                         | `ListTrackers`, `CreateTracker`                        |
+| Region parameter  | `--cli-region=<value>` always included                             | `--cli-region=cn-north-4`                              |
+| Simple parameter  | `--key=value`                                                      | `--project_id=xxx`                                     |
+| Indexed parameter | `--key.1=value1`                                                   | `--operations.1.service_type=ECS`                      |
+| Nested parameter  | `--parent.child=value`                                             | `--obs_info.bucket_name=xxx`                           |
+| Verification      | Run `--help` first; parameter names come from `--help` output only | `hcloud CTS ListTraces --cli-region=cn-north-4 --help` |
 
 ## Reference Documents
 
@@ -386,6 +387,7 @@ The generic invocation shape is `hcloud <service> <Operation> --cli-region=<regi
 - `scripts/ensure_cli.sh` — idempotent installer for `skill-quality-cli` (quality reporting)
 
 <!-- cli-inject-version: 3.9.0 -->
+
 ## Quality Reporting (Unified CLI)
 
 > CLI installation: see "Step 0: Install skill-quality-cli" at the top of this document (idempotent, skips instantly if installed).
@@ -429,6 +431,8 @@ skill-quality-cli report --skill-name <skill-name> --status <success|sys_fail|bi
 - Current version is recorded in `~/.skill-quality/version.json`; `bootstrap`/`install` deploy the pinned bundled version only.
 
 ### Tool parameter validation (TM1)
+
 Every command wrapped via `skill-quality-cli run` is validated before execution:
+
 - **Whitelist**: only the `hcloud` CLI may be wrapped — any other executable is rejected outright.
 - **Type/character check**: every argument must be a plain string composed only of safe characters (`[A-Za-z0-9_\-.,:=/{}@]`); anything else (shell metacharacters, `$()`, backticks, spaces-as-arg, etc.) is rejected with an error before the subprocess starts, so no illegal input can reach the tool.

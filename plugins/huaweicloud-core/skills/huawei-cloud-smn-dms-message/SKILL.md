@@ -4,12 +4,13 @@ description: |
   Manage Huawei Cloud SMN (Simple Message Notification) topics, subscriptions, message templates and message publishing, and manage DMS (Distributed Message Service) Kafka/RabbitMQ/RocketMQ instances and Kafka topics. 15 built-in actions cover query (list topics/subscriptions/message templates/DMS instances/Kafka topics), diagnosis (subscription confirmation status, DMS instance health & capacity), management (create topic, add subscription, create message template, publish message, create DMS instance) and destructive operations (delete SMN topic, confirm subscription, delete DMS instance). KooCLI has no DMS command; the three engine services are the only DMS entry points. Supports both AK/SK and local KooCLI profile authentication.
   Use this skill when the user wants to: (1) list or create SMN topics and subscriptions, (2) send or diagnose notifications, (3) inspect SMN subscription confirmation status, (4) list, create, or delete DMS Kafka/RabbitMQ/RocketMQ instances, (5) list Kafka topics, (6) analyze DMS instance health or capacity.
   Triggers include: "SMN", "SMN主题", "消息通知", "subscribe", "topic", "发布消息", "推送消息", "notification", "DMS", "Kafka", "RabbitMQ", "RocketMQ", "消息队列", "DMS实例", "Kafka实例", "RabbitMQ实例", "RocketMQ实例", "订阅", "消息模板", "MQS"
-tags: ["smn", "dms", "kafka", "rabbitmq", "rocketmq"]
+tags: ['smn', 'dms', 'kafka', 'rabbitmq', 'rocketmq']
 ---
 
 # Huawei Cloud SMN / DMS Messaging Skill
 
 <!-- cli-install-version: 3.9.0 -->
+
 ## Step 0: Ensure skill-quality-cli (required; installed on first use)
 
 **Mandatory**: before running any `huawei_*` action, ensure `skill-quality-cli` is installed
@@ -50,11 +51,11 @@ This skill provides 15 `huawei_*` actions for Huawei Cloud **SMN** (Simple Messa
 
 ## Precedence of Action Families (Risk-Based Execution)
 
-| Family | Actions | Execution | Risk |
-|--------|---------|-----------|------|
-| **R3 — Query / Diagnose** (7) | `huawei_list_smn_topics`, `huawei_list_smn_subscriptions`, `huawei_list_smn_message_templates`, `huawei_list_dms_instances`, `huawei_list_dms_topics`, `huawei_analyze_smn_subscription_confirmation`, `huawei_analyze_dms_instance_status` | **Auto-execute** (read-only) | No |
-| **R2 — Manage** (5) | `huawei_create_smn_topic`, `huawei_add_smn_subscription`, `huawei_create_smn_message_template`, `huawei_publish_smn_message`, `huawei_create_dms_instance` | **Preview command + ask user to confirm** before running | Yes (creates resources / spends money) |
-| **R1 — Destructive** (3) | `huawei_delete_smn_topic`, `huawei_confirm_smn_subscription`, `huawei_delete_dms_instance` | **End-to-end confirmation**: present full command + describe irreversible impact, require explicit user approval | High (deletes/changes state, SMS/email side effects) |
+| Family                        | Actions                                                                                                                                                                                                                                     | Execution                                                                                                        | Risk                                                 |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| **R3 — Query / Diagnose** (7) | `huawei_list_smn_topics`, `huawei_list_smn_subscriptions`, `huawei_list_smn_message_templates`, `huawei_list_dms_instances`, `huawei_list_dms_topics`, `huawei_analyze_smn_subscription_confirmation`, `huawei_analyze_dms_instance_status` | **Auto-execute** (read-only)                                                                                     | No                                                   |
+| **R2 — Manage** (5)           | `huawei_create_smn_topic`, `huawei_add_smn_subscription`, `huawei_create_smn_message_template`, `huawei_publish_smn_message`, `huawei_create_dms_instance`                                                                                  | **Preview command + ask user to confirm** before running                                                         | Yes (creates resources / spends money)               |
+| **R1 — Destructive** (3)      | `huawei_delete_smn_topic`, `huawei_confirm_smn_subscription`, `huawei_delete_dms_instance`                                                                                                                                                  | **End-to-end confirmation**: present full command + describe irreversible impact, require explicit user approval | High (deletes/changes state, SMS/email side effects) |
 
 ## Action Dispatch (Script Executor)
 
@@ -104,9 +105,9 @@ curl -O https://cn-north-4-hcli.obs.cn-north-4.myhuaweicloud.com/hcli_install.sh
 
 > **Prerequisite check 2/3: Authentication — AK/SK or hcloud profile (either is supported)**
 
-| Auth mode | How to configure | When to use |
-|-----------|------------------|-------------|
-| **Local hcloud profile** | Run `hcloud configure set --cli-mode=AKSK --cli-region=cn-north-4` interactively, then enter AK/SK | Recommended; commands run exactly as documented below |
+| Auth mode                       | How to configure                                                                                                  | When to use                                               |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| **Local hcloud profile**        | Run `hcloud configure set --cli-mode=AKSK --cli-region=cn-north-4` interactively, then enter AK/SK                | Recommended; commands run exactly as documented below     |
 | **AK/SK environment variables** | `export HUAWEICLOUD_SDK_AK=<ak>` and `export HUAWEICLOUD_SDK_SK=<sk>` (optional `HUAWEICLOUD_SDK_SECURITY_TOKEN`) | CI / ephemeral runtimes; KooCLI reads these automatically |
 
 Verify a profile exists (values are never printed):
@@ -159,13 +160,13 @@ If the user offers AK/SK inline, refuse politely and point them to the two auth 
 skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN ListTopics --cli-region={region} --limit=20 --offset=0
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
+| Parameter      | Required   | Description                       |
+| -------------- | ---------- | --------------------------------- |
 | `--cli-region` | Yes (auto) | Region, agent fills automatically |
-| `--limit` | No | 1–100, default 100 |
-| `--offset` | No | Page offset, default 0 |
-| `--name` | No | Exact topic name match |
-| `--fuzzy_name` | No | Fuzzy topic name search |
+| `--limit`      | No         | 1–100, default 100                |
+| `--offset`     | No         | Page offset, default 0            |
+| `--name`       | No         | Exact topic name match            |
+| `--fuzzy_name` | No         | Fuzzy topic name search           |
 
 #### huawei_list_smn_subscriptions — List SMN subscriptions
 
@@ -173,12 +174,12 @@ skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN Li
 skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN ListSubscriptions --cli-region={region} --limit=20 --offset=0
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--cli-region` | Yes (auto) | Region |
-| `--protocol` | No | `http` \| `https` \| `sms` \| `email` \| `functionstage` |
-| `--status` | No | `0`=unconfirmed `1`=confirmed `2`=no confirm `3`=cancelled `4`=deleted |
-| `--limit` / `--offset` | No | Pagination |
+| Parameter              | Required   | Description                                                            |
+| ---------------------- | ---------- | ---------------------------------------------------------------------- |
+| `--cli-region`         | Yes (auto) | Region                                                                 |
+| `--protocol`           | No         | `http` \| `https` \| `sms` \| `email` \| `functionstage`               |
+| `--status`             | No         | `0`=unconfirmed `1`=confirmed `2`=no confirm `3`=cancelled `4`=deleted |
+| `--limit` / `--offset` | No         | Pagination                                                             |
 
 #### huawei_list_smn_message_templates — List SMN message templates
 
@@ -186,11 +187,11 @@ skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN Li
 skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN ListMessageTemplates --cli-region={region} --limit=20
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--cli-region` | Yes (auto) | Region |
-| `--message_template_name` | No | Template name, 1–64 chars |
-| `--protocol` | No | `default` \| `email` \| `sms` \| `functionstage` \| `http` \| `https` |
+| Parameter                 | Required   | Description                                                           |
+| ------------------------- | ---------- | --------------------------------------------------------------------- |
+| `--cli-region`            | Yes (auto) | Region                                                                |
+| `--message_template_name` | No         | Template name, 1–64 chars                                             |
+| `--protocol`              | No         | `default` \| `email` \| `sms` \| `functionstage` \| `http` \| `https` |
 
 #### huawei_list_dms_instances — List DMS instances by engine
 
@@ -203,11 +204,11 @@ skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud Rabbit
 skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud RocketMQ ListInstances --engine=rocketmq --cli-region={region} --limit=20 --offset=0
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--engine` | Yes | `kafka` \| `rabbitmq` \| `rocketmq` (fixed per engine) |
-| `--cli-region` | Yes (auto) | Region |
-| `--status` | No | `RUNNING` \| `CREATING` \| `ERROR` \| `DELETING` \| ... |
+| Parameter      | Required   | Description                                             |
+| -------------- | ---------- | ------------------------------------------------------- |
+| `--engine`     | Yes        | `kafka` \| `rabbitmq` \| `rocketmq` (fixed per engine)  |
+| `--cli-region` | Yes (auto) | Region                                                  |
+| `--status`     | No         | `RUNNING` \| `CREATING` \| `ERROR` \| `DELETING` \| ... |
 
 #### huawei_list_dms_topics — List Kafka topics of an instance
 
@@ -215,10 +216,10 @@ skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud Rocket
 skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud Kafka ListInstanceTopics --instance_id={instance_id} --cli-region={region} --limit=20 --offset=0
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--instance_id` | Yes | Kafka instance ID (from `huawei_list_dms_instances`) |
-| `--cli-region` | Yes (auto) | Region |
+| Parameter       | Required   | Description                                          |
+| --------------- | ---------- | ---------------------------------------------------- |
+| `--instance_id` | Yes        | Kafka instance ID (from `huawei_list_dms_instances`) |
+| `--cli-region`  | Yes (auto) | Region                                               |
 
 ### R3 — Diagnose (auto-execute)
 
@@ -230,11 +231,11 @@ skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN Li
 
 Analyze the result: `status=0` subscriptions have **not been confirmed** — HTTP/HTTPS endpoints must implement the ping-back confirmation, email endpoints require the user to click the confirmation link. List the unconfirmed subscriptions and the action needed for each protocol.
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--cli-region` | Yes (auto) | Region |
-| `--topic_urn` | No | Analyze a single topic |
-| `--protocol` | No | Focus on one protocol |
+| Parameter      | Required   | Description            |
+| -------------- | ---------- | ---------------------- |
+| `--cli-region` | Yes (auto) | Region                 |
+| `--topic_urn`  | No         | Analyze a single topic |
+| `--protocol`   | No         | Focus on one protocol  |
 
 #### huawei_analyze_dms_instance_status — DMS instance health & capacity analysis
 
@@ -245,9 +246,9 @@ skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud Kafka 
 
 Analyze: instance status (`RUNNING` healthy; `ERROR`/`FROZEN`/`CREATEFAILED` unhealthy), storage usage, restart/maintain state, broker count. Follow the same pattern with `RabbitMQ`/`RocketMQ` for other engines.
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--engine` | Yes | Engine |
+| Parameter       | Required                 | Description |
+| --------------- | ------------------------ | ----------- |
+| `--engine`      | Yes                      | Engine      |
 | `--instance_id` | Yes (for `ShowInstance`) | Instance ID |
 
 ### R2 — Manage (preview + confirm)
@@ -258,11 +259,11 @@ Analyze: instance status (`RUNNING` healthy; `ERROR`/`FROZEN`/`CREATEFAILED` unh
 skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN CreateTopic --name={name} --display_name={display_name} --cli-region={region}
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--name` | Yes | 1–255 chars, letters/digits/`-`/`_`, must start with letter/digit |
-| `--display_name` | Yes | Display name shown as sender in email (may be empty string) |
-| `--enterprise_project_id` | No | Enterprise project |
+| Parameter                 | Required | Description                                                       |
+| ------------------------- | -------- | ----------------------------------------------------------------- |
+| `--name`                  | Yes      | 1–255 chars, letters/digits/`-`/`_`, must start with letter/digit |
+| `--display_name`          | Yes      | Display name shown as sender in email (may be empty string)       |
+| `--enterprise_project_id` | No       | Enterprise project                                                |
 
 #### huawei_add_smn_subscription — Add a subscription to a topic
 
@@ -270,12 +271,12 @@ skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN Cr
 skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN AddSubscription --topic_urn={topic_urn} --protocol={protocol} --endpoint={endpoint} --cli-region={region}
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--topic_urn` | Yes | Topic resource identifier |
-| `--protocol` | Yes | `email` \| `sms` \| `http` \| `https` \| `functionstage` \| `dingding` \| `wechat` \| `feishu` \| `welink` |
-| `--endpoint` | Yes | Per protocol: email address, phone, `http(s)://` URL, FunctionGraph ARN, chatbot webhook |
-| `--remark` | No | Remarks, ≤128 bytes |
+| Parameter     | Required | Description                                                                                                |
+| ------------- | -------- | ---------------------------------------------------------------------------------------------------------- |
+| `--topic_urn` | Yes      | Topic resource identifier                                                                                  |
+| `--protocol`  | Yes      | `email` \| `sms` \| `http` \| `https` \| `functionstage` \| `dingding` \| `wechat` \| `feishu` \| `welink` |
+| `--endpoint`  | Yes      | Per protocol: email address, phone, `http(s)://` URL, FunctionGraph ARN, chatbot webhook                   |
+| `--remark`    | No       | Remarks, ≤128 bytes                                                                                        |
 
 > ⚠️ **After adding, HTTP/HTTPS subscriptions need endpoint ping-back confirmation; email subscriptions need the user to click the confirmation link** — the subscription stays `status=0` until then.
 
@@ -285,11 +286,11 @@ skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN Ad
 skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN CreateMessageTemplate --message_template_name={message_template_name} --content={content} --cli-region={region}
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--message_template_name` | Yes | 1–64 chars, start with letter/digit |
-| `--content` | Yes | Plain-text template content, ≤256 KB; supports `${variable}` placeholders |
-| `--protocol` | No | `default` \| `email` \| `sms` \| `functionstage` \| `http` \| `https` |
+| Parameter                 | Required | Description                                                               |
+| ------------------------- | -------- | ------------------------------------------------------------------------- |
+| `--message_template_name` | Yes      | 1–64 chars, start with letter/digit                                       |
+| `--content`               | Yes      | Plain-text template content, ≤256 KB; supports `${variable}` placeholders |
+| `--protocol`              | No       | `default` \| `email` \| `sms` \| `functionstage` \| `http` \| `https`     |
 
 > ⚠️ **SMS is billed per delivered message** — publishing via SMS-inclined templates incurs per-message charges.
 
@@ -299,14 +300,14 @@ skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN Cr
 skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN PublishMessage --topic_urn={topic_urn} --message={message} --cli-region={region}
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--topic_urn` | Yes | Topic resource identifier |
-| `--message` | Yes (or `--message_structure`/`--message_template_name`) | ≤256 KB; SMS ≤490 chars, no `[]` |
-| `--subject` | No | Email subject, ≤512 bytes |
-| `--message_template_name` | No | Publish using a template |
-| `--tags.*` | No | Template variable substitution, e.g. `--tags.name=value` |
-| `--time_to_live` | No | Retention ≤86400 s, default 3600 |
+| Parameter                 | Required                                                 | Description                                              |
+| ------------------------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| `--topic_urn`             | Yes                                                      | Topic resource identifier                                |
+| `--message`               | Yes (or `--message_structure`/`--message_template_name`) | ≤256 KB; SMS ≤490 chars, no `[]`                         |
+| `--subject`               | No                                                       | Email subject, ≤512 bytes                                |
+| `--message_template_name` | No                                                       | Publish using a template                                 |
+| `--tags.*`                | No                                                       | Template variable substitution, e.g. `--tags.name=value` |
+| `--time_to_live`          | No                                                       | Retention ≤86400 s, default 3600                         |
 
 #### huawei_create_dms_instance — Create a DMS instance (by engine)
 
@@ -321,18 +322,18 @@ skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud Rabbit
 skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud RocketMQ CreateInstanceByEngine --name={name} --engine=rocketmq --engine_version={engine_version} --product_id={product_id} --available_zones.1={zone} --broker_num={broker_num} --vpc_id={vpc_id} --subnet_id={subnet_id} --security_group_id={security_group_id} --storage_space={storage_space} --storage_spec_code={storage_spec_code} --cli-region={region}
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--engine` | Yes | `kafka` \| `rabbitmq` \| `rocketmq` |
-| `--name` | Yes | Instance name |
-| `--engine_version` | Yes | e.g. Kafka `2.7`/`3.3`, RabbitMQ `3.8.35`, RocketMQ `4.8.0` |
-| `--product_id` | Yes | Instance flavor published with engine/version (see `ListEngineProducts`) |
-| `--available_zones.1` | Yes | AZ ID |
-| `--vpc_id` / `--subnet_id` / `--security_group_id` | Yes | Networking |
-| `--storage_space` | Yes | Storage in GB |
-| `--storage_spec_code` | Yes | `dms.physical.storage.high.v2` \| `dms.physical.storage.ultra.v2` \| `dms.physical.storage.general` \| `dms.physical.storage.extreme` |
-| `--broker_num` | Yes (Kafka/RocketMQ) | Number of brokers |
-| `--access_user` / `--password` | Yes (RabbitMQ) | RabbitMQ console credentials |
+| Parameter                                          | Required             | Description                                                                                                                           |
+| -------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `--engine`                                         | Yes                  | `kafka` \| `rabbitmq` \| `rocketmq`                                                                                                   |
+| `--name`                                           | Yes                  | Instance name                                                                                                                         |
+| `--engine_version`                                 | Yes                  | e.g. Kafka `2.7`/`3.3`, RabbitMQ `3.8.35`, RocketMQ `4.8.0`                                                                           |
+| `--product_id`                                     | Yes                  | Instance flavor published with engine/version (see `ListEngineProducts`)                                                              |
+| `--available_zones.1`                              | Yes                  | AZ ID                                                                                                                                 |
+| `--vpc_id` / `--subnet_id` / `--security_group_id` | Yes                  | Networking                                                                                                                            |
+| `--storage_space`                                  | Yes                  | Storage in GB                                                                                                                         |
+| `--storage_spec_code`                              | Yes                  | `dms.physical.storage.high.v2` \| `dms.physical.storage.ultra.v2` \| `dms.physical.storage.general` \| `dms.physical.storage.extreme` |
+| `--broker_num`                                     | Yes (Kafka/RocketMQ) | Number of brokers                                                                                                                     |
+| `--access_user` / `--password`                     | Yes (RabbitMQ)       | RabbitMQ console credentials                                                                                                          |
 
 > Run `hcloud Kafka ListEngineProducts --engine=kafka --cli-region={region}` to get valid `--product_id` / `--engine_version` pairs before creating. Preview the full command and confirm the estimated cost with the user before running.
 
@@ -344,9 +345,9 @@ skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud Rocket
 skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN DeleteTopic --topic_urn={topic_urn} --cli-region={region}
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--topic_urn` | Yes | Topic resource identifier |
+| Parameter     | Required | Description               |
+| ------------- | -------- | ------------------------- |
+| `--topic_urn` | Yes      | Topic resource identifier |
 
 > ⚠️ Deleting a topic deletes **all subscriptions and message history** for it — require explicit user confirmation including the topic name.
 
@@ -356,11 +357,11 @@ skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN De
 skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud SMN ConfirmSubscription --token={token} --cli-region={region}
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--token` | Yes | Confirmation token (from the HTTP ping-back request body or the email confirmation link) |
-| `--topic_urn` | No | Topic resource identifier |
-| `--endpoint` | No | Subscription endpoint IP |
+| Parameter     | Required | Description                                                                              |
+| ------------- | -------- | ---------------------------------------------------------------------------------------- |
+| `--token`     | Yes      | Confirmation token (from the HTTP ping-back request body or the email confirmation link) |
+| `--topic_urn` | No       | Topic resource identifier                                                                |
+| `--endpoint`  | No       | Subscription endpoint IP                                                                 |
 
 > The token normally arrives at the subscribing endpoint (HTTP/HTTPS ping-back body, or the URL in the email confirmation link). The agent must obtain it from the user/endpoint and show the exact confirmation action before running.
 
@@ -375,10 +376,10 @@ skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud Rabbit
 skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud RocketMQ DeleteInstance --instance_id={instance_id} --cli-region={region}
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--instance_id` | Yes | DMS instance ID |
-| `--cli-region` | Yes (auto) | Region |
+| Parameter       | Required   | Description     |
+| --------------- | ---------- | --------------- |
+| `--instance_id` | Yes        | DMS instance ID |
+| `--cli-region`  | Yes (auto) | Region          |
 
 > ⚠️ Deleting a message-queue instance is **irreversible** and deletes all stored messages (topics, queues, offsets). Confirm instance ID, engine, and data-loss impact with the user explicitly before running.
 
@@ -394,13 +395,13 @@ skill-quality-cli run --skill-name huawei-cloud-smn-dms-message -- hcloud Rocket
 The generic invocation shape is `hcloud <Service> <Operation> --cli-region={region} [--key=value ...]`
 — this is a **format description only**: `<...>` and `[...]` are placeholders, never executed verbatim.
 
-| Feature | Convention | Example |
-|---------|-----------|---------|
-| Service name | Actual KooCLI service (case matters): `SMN`, `Kafka`, `RabbitMQ`, `RocketMQ`. **No `DMS` service exists** | `hcloud <Service> <Operation>` |
-| Operation name | PascalCase | `ListInstanceTopics` |
-| Region | `--cli-region={region}` always included | `--cli-region=cn-north-4` |
-| Scalar param | `--param=value` | `--instance_id=xxx` |
-| Indexed param | `--param.N=value` | `--available_zones.1=cn-north-4a` |
+| Feature        | Convention                                                                                                | Example                           |
+| -------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| Service name   | Actual KooCLI service (case matters): `SMN`, `Kafka`, `RabbitMQ`, `RocketMQ`. **No `DMS` service exists** | `hcloud <Service> <Operation>`    |
+| Operation name | PascalCase                                                                                                | `ListInstanceTopics`              |
+| Region         | `--cli-region={region}` always included                                                                   | `--cli-region=cn-north-4`         |
+| Scalar param   | `--param=value`                                                                                           | `--instance_id=xxx`               |
+| Indexed param  | `--param.N=value`                                                                                         | `--available_zones.1=cn-north-4a` |
 
 ## RAM / Capacity Notes
 
@@ -419,6 +420,7 @@ The generic invocation shape is `hcloud <Service> <Operation> --cli-region={regi
 - [references/security-audit-guide.md](references/security-audit-guide.md) — security audit how-to (recommended)
 
 <!-- cli-inject-version: 3.9.0 -->
+
 ## Quality Reporting (Unified CLI)
 
 > CLI installation: see "Step 0: Ensure skill-quality-cli" at the top of this document (idempotent, installs a pinned version with SHA256 verification only if absent).
@@ -428,13 +430,17 @@ Report execution quality on every run of this skill, using either mode below. Th
 > **⚠️ PATH note: the CLI is installed to `~/.local/bin/`, which is NOT always in `$PATH` in some environments. If `skill-quality-cli: command not found` (exit 127) appears, run `export PATH="$HOME/.local/bin:$PATH"` first (ensure_cli.sh does this automatically), then retry; or call the absolute path `~/.local/bin/skill-quality-cli` directly.**
 
 ### Mode 1 (recommended, automatic) — wrap the whole execution
+
 For script/command-style skills, wrap the entire command with `run`:
+
 ```bash
 skill-quality-cli run --skill-name <skill-name> -- <your command>
 ```
 
 ### Mode 2 (multi-step / instruction-style skills)
+
 Report once per step (callable multiple times):
+
 ```bash
 skill-quality-cli report --skill-name <skill-name> --status <success|sys_fail|biz_fail|cancel>
 ```
@@ -442,6 +448,7 @@ skill-quality-cli report --skill-name <skill-name> --status <success|sys_fail|bi
 > **⚠️ Mandatory rule: any hcloud command executed by this skill MUST be wrapped with `skill-quality-cli run` — bare hcloud calls are strictly forbidden.**
 
 ### CLI installation (pinned version, SHA256-verified)
+
 - **Auto install**: run `bash scripts/ensure_cli.sh` before execution (idempotent, skips if installed; installs the pinned version with SHA256 whitelist verification).
 - **No auto-upgrade**: the CLI never upgrades itself at runtime — upgrade manually with `skill-quality-cli upgrade` (or re-run `bash scripts/install_cli.sh` for a manual install).
 - **Offline / failure**: installation failures are silent and never block the business flow; the skill degrades gracefully and reporting is skipped.

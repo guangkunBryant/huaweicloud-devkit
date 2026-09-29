@@ -12,13 +12,34 @@ description: |
   "deployment task", "deploy application", "部署任务", "部署应用", "start deploy", "发布部署",
   "release", "artifact deployment", "制品部署", "deploy failure", "部署失败",
   "pipeline deployment", "CI/CD deployment".
-triggers: ["CloudDeploy", "CodeArts Deploy", "部署", "deploy task", "deployment", "deployment task", "deploy application", "部署任务", "部署应用", "start deploy", "发布部署", "release", "artifact deployment", "制品部署", "deploy failure", "部署失败", "pipeline deployment", "CI/CD deployment"]
+triggers:
+  [
+    'CloudDeploy',
+    'CodeArts Deploy',
+    '部署',
+    'deploy task',
+    'deployment',
+    'deployment task',
+    'deploy application',
+    '部署任务',
+    '部署应用',
+    'start deploy',
+    '发布部署',
+    'release',
+    'artifact deployment',
+    '制品部署',
+    'deploy failure',
+    '部署失败',
+    'pipeline deployment',
+    'CI/CD deployment',
+  ]
 tags: [huawei-cloud, clouddeploy, codearts, deployment, devops]
 ---
 
 # Huawei Cloud CloudDeploy (CodeArts Deploy)
 
 <!-- cli-install-version: 3.9.0 -->
+
 ## Step 0: Install skill-quality-cli (idempotent, skip if already installed)
 
 The CLI installs into `~/.local/bin/`, which is **not always in `$PATH`** (bare
@@ -41,11 +62,11 @@ This skill operates Huawei Cloud CloudDeploy (CodeArts Deploy / 部署) through 
 CloudDeploy automates application deployment to ECS/BMS/CCI/Kubernetes and other targets, pulling
 artifacts (default source: OBS) and running deployment tasks created from templates. The skill covers:
 
-| Category | Capabilities |
-|----------|--------------|
-| **Query** | List deploy applications (`huawei_list_clouddeploy_apps`), list deployment tasks (`huawei_list_clouddeploy_tasks`), get task detail (`huawei_get_clouddeploy_task`) |
-| **Analyze** | Deployment failure root cause (`huawei_analyze_clouddeploy_failure` — agent offline/timeout/missing artifact/permission), OBS artifact link verification (`huawei_analyze_clouddeploy_artifact`) |
-| **Manage** | Create application (`huawei_create_clouddeploy_app`), create deployment task referencing an app (`huawei_create_clouddeploy_task`), start deployment (`huawei_start_clouddeploy_task`), delete deployment task (`huawei_delete_clouddeploy_task`) |
+| Category    | Capabilities                                                                                                                                                                                                                                      |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Query**   | List deploy applications (`huawei_list_clouddeploy_apps`), list deployment tasks (`huawei_list_clouddeploy_tasks`), get task detail (`huawei_get_clouddeploy_task`)                                                                               |
+| **Analyze** | Deployment failure root cause (`huawei_analyze_clouddeploy_failure` — agent offline/timeout/missing artifact/permission), OBS artifact link verification (`huawei_analyze_clouddeploy_artifact`)                                                  |
+| **Manage**  | Create application (`huawei_create_clouddeploy_app`), create deployment task referencing an app (`huawei_create_clouddeploy_task`), start deployment (`huawei_start_clouddeploy_task`), delete deployment task (`huawei_delete_clouddeploy_task`) |
 
 > **Always run `hcloud CodeArtsDeploy <Operation> --cli-region={region} --help` before constructing a
 > command** to discover the exact parameter names and required flags for the current KooCLI version.
@@ -56,15 +77,15 @@ artifacts (default source: OBS) and running deployment tasks created from templa
 
 ### Critical Warnings
 
-| Trap | Why |
-|------|-----|
-| **Flyway SQL dialect mismatch (H2 dev → MySQL prod)** | Spring Boot apps commonly develop with an H2 in-memory DB and deploy to RDS MySQL. Flyway migrations written with H2-specific syntax (`DATEADD`, `CHARACTER_LENGTH`, `BOOLEAN`) silently pass on H2 but fail on MySQL. Before deploying, audit `V*__*.sql` migration files: replace `DATEADD` with `DATE_ADD`, `BOOLEAN` with `TINYINT(1)`, and drop `characterEncoding=utf8mb4` from the Spring Boot datasource URL (RDS sets charset at instance level). Enable `Flyway.validate-on-migrate=true` in CI to catch dialect issues early. |
-| **Service name is `CodeArtsDeploy`, not `CloudDeploy`** | `hcloud CloudDeploy <op>` reports "Unsupported service" (KooCLI 7.2.12). The real service name is `CodeArtsDeploy` (metadata directory `codeartsdeploy`). Always verify with `hcloud CodeArtsDeploy ListAllApp --cli-region=cn-north-4 --help`. |
-| **Deployment hosts need the agent installed** | Target hosts (ECS/BMS/CCI) must have the CloudDeploy agent (`ICAgent`-style host agent) installed and online before a task can run. Check host status before starting a task — an offline agent is the #1 cause of "host offline / execution failed" results. |
-| **Task must reference an application** | Create the deploy application first, then create the deployment task. A task without an application cannot be created or started (`CreateDeployTaskByTemplate` requires the app's project and template). |
-| **Artifact source defaults to OBS** | Most deployment tasks pull artifacts from OBS buckets. Verify the bucket and object path exist and the service account has `GetObject` permission — otherwise the task fails at artifact download. |
-| **Parallel deployments may conflict** | Multiple tasks deploying to the same host/group concurrently can conflict or deadlock. Use deployment groups, host locking, or serialized pipelines; check for an already `running` task before starting another. |
-| **Security baseline** | Use IAM roles for deployment permissions, verify artifact integrity (checksum) before deploy, and never store plaintext credentials (AK/SK, DB passwords) in deployment scripts or task parameters (`--params` with `type=encrypt` exists for secrets). |
+| Trap                                                    | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Flyway SQL dialect mismatch (H2 dev → MySQL prod)**   | Spring Boot apps commonly develop with an H2 in-memory DB and deploy to RDS MySQL. Flyway migrations written with H2-specific syntax (`DATEADD`, `CHARACTER_LENGTH`, `BOOLEAN`) silently pass on H2 but fail on MySQL. Before deploying, audit `V*__*.sql` migration files: replace `DATEADD` with `DATE_ADD`, `BOOLEAN` with `TINYINT(1)`, and drop `characterEncoding=utf8mb4` from the Spring Boot datasource URL (RDS sets charset at instance level). Enable `Flyway.validate-on-migrate=true` in CI to catch dialect issues early. |
+| **Service name is `CodeArtsDeploy`, not `CloudDeploy`** | `hcloud CloudDeploy <op>` reports "Unsupported service" (KooCLI 7.2.12). The real service name is `CodeArtsDeploy` (metadata directory `codeartsdeploy`). Always verify with `hcloud CodeArtsDeploy ListAllApp --cli-region=cn-north-4 --help`.                                                                                                                                                                                                                                                                                          |
+| **Deployment hosts need the agent installed**           | Target hosts (ECS/BMS/CCI) must have the CloudDeploy agent (`ICAgent`-style host agent) installed and online before a task can run. Check host status before starting a task — an offline agent is the #1 cause of "host offline / execution failed" results.                                                                                                                                                                                                                                                                            |
+| **Task must reference an application**                  | Create the deploy application first, then create the deployment task. A task without an application cannot be created or started (`CreateDeployTaskByTemplate` requires the app's project and template).                                                                                                                                                                                                                                                                                                                                 |
+| **Artifact source defaults to OBS**                     | Most deployment tasks pull artifacts from OBS buckets. Verify the bucket and object path exist and the service account has `GetObject` permission — otherwise the task fails at artifact download.                                                                                                                                                                                                                                                                                                                                       |
+| **Parallel deployments may conflict**                   | Multiple tasks deploying to the same host/group concurrently can conflict or deadlock. Use deployment groups, host locking, or serialized pipelines; check for an already `running` task before starting another.                                                                                                                                                                                                                                                                                                                        |
+| **Security baseline**                                   | Use IAM roles for deployment permissions, verify artifact integrity (checksum) before deploy, and never store plaintext credentials (AK/SK, DB passwords) in deployment scripts or task parameters (`--params` with `type=encrypt` exists for secrets).                                                                                                                                                                                                                                                                                  |
 
 ## Triggers
 
@@ -126,7 +147,7 @@ For delete (R1) the user must confirm a second time in plain words (e.g. "确认
 
 ## Core Commands
 
-**Supported service (KooCLI): `CodeArtsDeploy` only.** This is the *single* supported service name
+**Supported service (KooCLI): `CodeArtsDeploy` only.** This is the _single_ supported service name
 for this skill. `CloudDeploy` and `Deploy` are **not** supported service names — the hcloud CLI
 rejects them with `[USE_ERROR]不支持的服务名称` (unsupported service), which is the **expected
 correct-rejection** result. Any command in this skill MUST use `hcloud CodeArtsDeploy <Operation>`.
@@ -290,144 +311,144 @@ All parameter names below were verified against `hcloud CodeArtsDeploy <Operatio
 
 ### ListAllApp
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `--cli-region` | Yes (auto) | string | Region where the API can be called |
-| `--project_id` | Yes | string | CodeArts project ID |
-| `--page` | Yes | integer | Page number, ≥ 1 |
-| `--size` | Yes | integer | Items per page, default 1000 |
-| `--group_id` | No | string | Application group ID; `no_grouped` for ungrouped apps |
-| `--sort_by` | No | string | `DESC` or `ASC`, default `DESC` |
-| `--sort_name` | No | string | `name` or `startTime` |
-| `--states.[N]` | No | array\<string\> | `abort`\|`failed`\|`not_started`\|`pending`\|`running`\|`succeeded`\|`timeout`\|`not_executed` |
+| Parameter      | Required   | Type            | Description                                                                                    |
+| -------------- | ---------- | --------------- | ---------------------------------------------------------------------------------------------- |
+| `--cli-region` | Yes (auto) | string          | Region where the API can be called                                                             |
+| `--project_id` | Yes        | string          | CodeArts project ID                                                                            |
+| `--page`       | Yes        | integer         | Page number, ≥ 1                                                                               |
+| `--size`       | Yes        | integer         | Items per page, default 1000                                                                   |
+| `--group_id`   | No         | string          | Application group ID; `no_grouped` for ungrouped apps                                          |
+| `--sort_by`    | No         | string          | `DESC` or `ASC`, default `DESC`                                                                |
+| `--sort_name`  | No         | string          | `name` or `startTime`                                                                          |
+| `--states.[N]` | No         | array\<string\> | `abort`\|`failed`\|`not_started`\|`pending`\|`running`\|`succeeded`\|`timeout`\|`not_executed` |
 
 ### ListDeployTasks
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `--cli-region` | Yes (auto) | string | Region where the API can be called |
-| `--project_id` | Yes | string | CodeArts project ID |
-| `--page` | Yes | integer | Page number, ≥ 1 |
-| `--size` | Yes | integer | Items per page, ≤ 100 |
+| Parameter      | Required   | Type    | Description                        |
+| -------------- | ---------- | ------- | ---------------------------------- |
+| `--cli-region` | Yes (auto) | string  | Region where the API can be called |
+| `--project_id` | Yes        | string  | CodeArts project ID                |
+| `--page`       | Yes        | integer | Page number, ≥ 1                   |
+| `--size`       | Yes        | integer | Items per page, ≤ 100              |
 
 ### ShowDeployTaskDetail
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
+| Parameter      | Required   | Type   | Description                        |
+| -------------- | ---------- | ------ | ---------------------------------- |
 | `--cli-region` | Yes (auto) | string | Region where the API can be called |
-| `--task_id` | Yes | string | Deployment task ID |
+| `--task_id`    | Yes        | string | Deployment task ID                 |
 
 ### ListDeployTaskHistoryByDate
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `--cli-region` | Yes (auto) | string | Region where the API can be called |
-| `--project_id` | Yes | string | CodeArts project ID |
-| `--id` | Yes | string | Deployment task ID |
-| `--start_date` | Yes | string | Start time, `yyyy-MM-dd` |
-| `--end_date` | Yes | string | End time, `yyyy-MM-dd`; interval with start ≤ 30 days |
-| `--page` | Yes | integer | Page number, ≥ 1 |
-| `--size` | Yes | integer | Items per page, ≤ 100 |
+| Parameter      | Required   | Type    | Description                                           |
+| -------------- | ---------- | ------- | ----------------------------------------------------- |
+| `--cli-region` | Yes (auto) | string  | Region where the API can be called                    |
+| `--project_id` | Yes        | string  | CodeArts project ID                                   |
+| `--id`         | Yes        | string  | Deployment task ID                                    |
+| `--start_date` | Yes        | string  | Start time, `yyyy-MM-dd`                              |
+| `--end_date`   | Yes        | string  | End time, `yyyy-MM-dd`; interval with start ≤ 30 days |
+| `--page`       | Yes        | integer | Page number, ≥ 1                                      |
+| `--size`       | Yes        | integer | Items per page, ≤ 100                                 |
 
 ### CheckIsDuplicateAppName
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
+| Parameter      | Required   | Type   | Description                        |
+| -------------- | ---------- | ------ | ---------------------------------- |
 | `--cli-region` | Yes (auto) | string | Region where the API can be called |
-| `--project_id` | Yes | string | CodeArts project ID |
-| `--name` | Yes | string | Application name to check |
+| `--project_id` | Yes        | string | CodeArts project ID                |
+| `--name`       | Yes        | string | Application name to check          |
 
 ### CreateApp
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `--cli-region` | Yes (auto) | string | Region where the API can be called |
-| `--project_id` | Yes | string | CodeArts project ID |
-| `--name` | Yes | string | Application name |
-| `--create_type` | Yes | string | `template` |
-| `--is_draft` | Yes | boolean | Create as draft (`true`) or published (`false`) |
-| `--description` | No | string | Application description |
-| `--group_id` | No | string | Application group ID |
-| `--arrange_infos.[N].*` | No | object | Application arrangement/steps definition |
-| `--trigger.*` | No | object | Trigger source restrictions (`trigger_source`: 0 = all, 1 = pipeline only) |
-| `--slave_cluster_id` | No | string | Custom slave resource pool ID |
+| Parameter               | Required   | Type    | Description                                                                |
+| ----------------------- | ---------- | ------- | -------------------------------------------------------------------------- |
+| `--cli-region`          | Yes (auto) | string  | Region where the API can be called                                         |
+| `--project_id`          | Yes        | string  | CodeArts project ID                                                        |
+| `--name`                | Yes        | string  | Application name                                                           |
+| `--create_type`         | Yes        | string  | `template`                                                                 |
+| `--is_draft`            | Yes        | boolean | Create as draft (`true`) or published (`false`)                            |
+| `--description`         | No         | string  | Application description                                                    |
+| `--group_id`            | No         | string  | Application group ID                                                       |
+| `--arrange_infos.[N].*` | No         | object  | Application arrangement/steps definition                                   |
+| `--trigger.*`           | No         | object  | Trigger source restrictions (`trigger_source`: 0 = all, 1 = pipeline only) |
+| `--slave_cluster_id`    | No         | string  | Custom slave resource pool ID                                              |
 
 ### CreateDeployTaskByTemplate
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `--cli-region` | Yes (auto) | string | Region where the API can be called |
-| `--project_id` | Yes | string | CodeArts project ID |
-| `--project_name` | Yes | string | Project name |
-| `--task_name` | Yes | string | Task (application) name |
-| `--template_id` | Yes | string | Deployment template ID — obtained from the **CodeArts Deploy console 模板库** when creating an app from a template (no CLI list operation exists for deploy templates; `ShowTemplate`/`ListTemplates` are not supported operations) |
-| `--configs.[N].name` | No | string | Deployment parameter name |
-| `--configs.[N].value` | No | string | Deployment parameter value |
-| `--configs.[N].type` | No | string | `text`\|`host_group`\|`enum`\|`encrypt` (mandatory if `name` is set) |
-| `--configs.[N].static_status` | No | integer | `1` = cannot change during deployment, `0` = can change |
-| `--configs.[N].limits.[N].*` | No | object | Enumerated value optional parameters |
-| `--configs.[N].task_id` | No | string | Auto-generated after app creation |
-| `--slave_cluster_id` | No | string | Custom slave resource pool ID |
+| Parameter                     | Required   | Type    | Description                                                                                                                                                                                                                         |
+| ----------------------------- | ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--cli-region`                | Yes (auto) | string  | Region where the API can be called                                                                                                                                                                                                  |
+| `--project_id`                | Yes        | string  | CodeArts project ID                                                                                                                                                                                                                 |
+| `--project_name`              | Yes        | string  | Project name                                                                                                                                                                                                                        |
+| `--task_name`                 | Yes        | string  | Task (application) name                                                                                                                                                                                                             |
+| `--template_id`               | Yes        | string  | Deployment template ID — obtained from the **CodeArts Deploy console 模板库** when creating an app from a template (no CLI list operation exists for deploy templates; `ShowTemplate`/`ListTemplates` are not supported operations) |
+| `--configs.[N].name`          | No         | string  | Deployment parameter name                                                                                                                                                                                                           |
+| `--configs.[N].value`         | No         | string  | Deployment parameter value                                                                                                                                                                                                          |
+| `--configs.[N].type`          | No         | string  | `text`\|`host_group`\|`enum`\|`encrypt` (mandatory if `name` is set)                                                                                                                                                                |
+| `--configs.[N].static_status` | No         | integer | `1` = cannot change during deployment, `0` = can change                                                                                                                                                                             |
+| `--configs.[N].limits.[N].*`  | No         | object  | Enumerated value optional parameters                                                                                                                                                                                                |
+| `--configs.[N].task_id`       | No         | string  | Auto-generated after app creation                                                                                                                                                                                                   |
+| `--slave_cluster_id`          | No         | string  | Custom slave resource pool ID                                                                                                                                                                                                       |
 
 ### StartDeployTask
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `--cli-region` | Yes (auto) | string | Region where the API can be called |
-| `--task_id` | Yes | string | Deployment task ID |
-| `--params.[N].key` | No | string | Parameter name passed during deployment |
-| `--params.[N].type` | No | string | `text`\|`host_group`\|`encrypt`\|`enum` (mandatory for dynamic params) |
-| `--params.[N].value` | No | string | Parameter value |
-| `--record_id` | No | string | Deployment record ID (rollback to previous deployment) |
-| `--trigger_source` | No | string | `0` = no limit, `1` = pipeline-only trigger |
+| Parameter            | Required   | Type   | Description                                                            |
+| -------------------- | ---------- | ------ | ---------------------------------------------------------------------- |
+| `--cli-region`       | Yes (auto) | string | Region where the API can be called                                     |
+| `--task_id`          | Yes        | string | Deployment task ID                                                     |
+| `--params.[N].key`   | No         | string | Parameter name passed during deployment                                |
+| `--params.[N].type`  | No         | string | `text`\|`host_group`\|`encrypt`\|`enum` (mandatory for dynamic params) |
+| `--params.[N].value` | No         | string | Parameter value                                                        |
+| `--record_id`        | No         | string | Deployment record ID (rollback to previous deployment)                 |
+| `--trigger_source`   | No         | string | `0` = no limit, `1` = pipeline-only trigger                            |
 
 ### DeleteDeployTask
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
+| Parameter      | Required   | Type   | Description                        |
+| -------------- | ---------- | ------ | ---------------------------------- |
 | `--cli-region` | Yes (auto) | string | Region where the API can be called |
-| `--task_id` | Yes | string | Deployment task ID |
+| `--task_id`    | Yes        | string | Deployment task ID                 |
 
 ## KooCLI Command Format Standard
 
 The generic invocation shape is `hcloud <service> <Operation> --cli-region=<region> [--key=value ...]`
 — this is a **format description only**: `<...>` and `[--key=value]` are placeholders, never executed verbatim.
 
-| Feature | Rule | Example |
-|---------|------|---------|
-| Service name | `CodeArtsDeploy` (metadata directory `codeartsdeploy`; `CloudDeploy` is NOT supported) | `hcloud CodeArtsDeploy ListAllApp --cli-region=cn-north-4` |
-| Operation name | PascalCase | `ListAllApp`, `StartDeployTask` |
-| Region parameter | `--cli-region=<value>` always included | `--cli-region=cn-north-4` |
-| Simple parameter | `--key=value` | `--project_id=xxx` |
-| Indexed parameter | `--key.N=value` | `--states.1=failed`, `--params.1.key=xxx` |
-| Nested parameter | `--parent.child=value` | `--configs.1.type=encrypt` |
-| Verification | Run `--help` first; parameter names come from `--help` output only | `hcloud CodeArtsDeploy CreateApp --cli-region=cn-north-4 --help` |
+| Feature           | Rule                                                                                   | Example                                                          |
+| ----------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Service name      | `CodeArtsDeploy` (metadata directory `codeartsdeploy`; `CloudDeploy` is NOT supported) | `hcloud CodeArtsDeploy ListAllApp --cli-region=cn-north-4`       |
+| Operation name    | PascalCase                                                                             | `ListAllApp`, `StartDeployTask`                                  |
+| Region parameter  | `--cli-region=<value>` always included                                                 | `--cli-region=cn-north-4`                                        |
+| Simple parameter  | `--key=value`                                                                          | `--project_id=xxx`                                               |
+| Indexed parameter | `--key.N=value`                                                                        | `--states.1=failed`, `--params.1.key=xxx`                        |
+| Nested parameter  | `--parent.child=value`                                                                 | `--configs.1.type=encrypt`                                       |
+| Verification      | Run `--help` first; parameter names come from `--help` output only                     | `hcloud CodeArtsDeploy CreateApp --cli-region=cn-north-4 --help` |
 
 ## Tool Parameter Validation (Mandatory)
 
 Validate every parameter before execution; illegal input is rejected directly (never passed to `hcloud`):
 
-| Validation | Rule |
-| ---------- | ---- |
-| Whitelist enum | Documented value sets (`--cli-region`, `--states.[N]`, `--sort_by`, `--size`, `--page`, `--create_type`, `--is_draft`, `--configs.[N].type`, `--params.[N].type`, ...) must match exactly; anything else → refuse, listing allowed values |
-| Type check | Numeric params (`--page`, `--size`) must be positive integers (≥ 1; `--size` ≤ 100 for the list/task interfaces); name/ID params (`--project_id`, `--task_id`, `--id`, `--template_id`, `--app_name`) must be strings matching `[a-zA-Z0-9_-]+` |
-| Date range | `--start_date`/`--end_date` must be `yyyy-MM-dd` and the interval ≤ 30 days; otherwise refuse |
-| Secret params | `--params.[N].type=encrypt` values must never appear in logs/output; only `*`-masked representation is shown |
-| Reject unknown | Params absent from `hcloud CodeArtsDeploy <Operation> --help` are rejected before running the command |
+| Validation     | Rule                                                                                                                                                                                                                                            |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Whitelist enum | Documented value sets (`--cli-region`, `--states.[N]`, `--sort_by`, `--size`, `--page`, `--create_type`, `--is_draft`, `--configs.[N].type`, `--params.[N].type`, ...) must match exactly; anything else → refuse, listing allowed values       |
+| Type check     | Numeric params (`--page`, `--size`) must be positive integers (≥ 1; `--size` ≤ 100 for the list/task interfaces); name/ID params (`--project_id`, `--task_id`, `--id`, `--template_id`, `--app_name`) must be strings matching `[a-zA-Z0-9_-]+` |
+| Date range     | `--start_date`/`--end_date` must be `yyyy-MM-dd` and the interval ≤ 30 days; otherwise refuse                                                                                                                                                   |
+| Secret params  | `--params.[N].type=encrypt` values must never appear in logs/output; only `*`-masked representation is shown                                                                                                                                    |
+| Reject unknown | Params absent from `hcloud CodeArtsDeploy <Operation> --help` are rejected before running the command                                                                                                                                           |
 
 ### Expected CLI rejections (for verification / boundary cases)
 
 These are **expected error outcomes** — the CLI or API rejects the input and the rejection itself is
 the correct result, not a skill defect:
 
-| Input | Expected rejection |
-|-------|--------------------|
-| `--page=0` (or any page < 1) | `DEV-12-50002 page参数异常，仅支持数字（1~99999）` |
-| Unknown `--task_id` format (e.g. non-32-char) | `DEV-12-50002 task_id参数异常，仅支持数字、字母字符（32个字符）` |
-| Non-CodeArts (plain IAM) project id in `--project_id` | `Deploy.00016902 项目不存在` (project scope limitation) |
+| Input                                                             | Expected rejection                                                                                       |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `--page=0` (or any page < 1)                                      | `DEV-12-50002 page参数异常，仅支持数字（1~99999）`                                                       |
+| Unknown `--task_id` format (e.g. non-32-char)                     | `DEV-12-50002 task_id参数异常，仅支持数字、字母字符（32个字符）`                                         |
+| Non-CodeArts (plain IAM) project id in `--project_id`             | `Deploy.00016902 项目不存在` (project scope limitation)                                                  |
 | Service name `CloudDeploy` / `Deploy` instead of `CodeArtsDeploy` | `[USE_ERROR]不支持的服务名称:CloudDeploy` (unsupported service — the supported name is `CodeArtsDeploy`) |
-| Unknown parameter flag | `[USE_ERROR]不正确的参数:xxx` |
-| `hcloud obs` without obsutil configured | `Warn: Please set ak, sk and endpoint in the configuration file!` |
+| Unknown parameter flag                                            | `[USE_ERROR]不正确的参数:xxx`                                                                            |
+| `hcloud obs` without obsutil configured                           | `Warn: Please set ak, sk and endpoint in the configuration file!`                                        |
 
 ## Reference Documents
 

@@ -54,12 +54,12 @@ hcloud SMN ListTopics --cli-region=cn-north-4 --limit=1
 
 ## 4. Supported services for this skill
 
-| KooCLI service | Purpose | Notes |
-|----------------|---------|-------|
-| `SMN` | Topics, subscriptions, message templates, publishing, confirmation | Uppercase `SMN` |
-| `Kafka` | DMS Kafka instances + topics | **DMS** engine |
-| `RabbitMQ` | DMS RabbitMQ instances | **DMS** engine |
-| `RocketMQ` | DMS RocketMQ instances | **DMS** engine |
+| KooCLI service | Purpose                                                            | Notes           |
+| -------------- | ------------------------------------------------------------------ | --------------- |
+| `SMN`          | Topics, subscriptions, message templates, publishing, confirmation | Uppercase `SMN` |
+| `Kafka`        | DMS Kafka instances + topics                                       | **DMS** engine  |
+| `RabbitMQ`     | DMS RabbitMQ instances                                             | **DMS** engine  |
+| `RocketMQ`     | DMS RocketMQ instances                                             | **DMS** engine  |
 
 There is **no** `hcloud DMS` command — DMS is always reached through the three engine services.
 

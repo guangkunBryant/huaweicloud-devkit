@@ -71,11 +71,11 @@ alternative is:
 
 ## Related Permissions for Prerequisites
 
-| Prerequisite | Required Permission |
-|--------------|--------------------|
-| OBS bucket/object for artifacts (default artifact source) | `obs:bucket:ListAllMyBuckets`, `obs:object:GetObject` on the target bucket/object |
-| Target hosts (ECS/BMS/CCI) | Host must be registered in the deployment group; the CloudDeploy agent runs on the host, no extra IAM permission for read operations |
-| CodeArts project | The project must be enabled as a CodeArts (DevCloud) project in the region |
+| Prerequisite                                              | Required Permission                                                                                                                  |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| OBS bucket/object for artifacts (default artifact source) | `obs:bucket:ListAllMyBuckets`, `obs:object:GetObject` on the target bucket/object                                                    |
+| Target hosts (ECS/BMS/CCI)                                | Host must be registered in the deployment group; the CloudDeploy agent runs on the host, no extra IAM permission for read operations |
+| CodeArts project                                          | The project must be enabled as a CodeArts (DevCloud) project in the region                                                           |
 
 ## Security Notes
 

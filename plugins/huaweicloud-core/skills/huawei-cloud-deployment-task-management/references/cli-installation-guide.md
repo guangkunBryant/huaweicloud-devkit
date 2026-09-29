@@ -99,7 +99,7 @@ hcloud obs ls obs://{artifact_bucket}/{artifact_object_path}
 
 > `-i`/`-k` are provided from your credentials at runtime; never store them in files in the skill
 > directory. `obsutil` object URLs use the `obs://` scheme — `s3://` is rejected with `cloud_url
-> is not in well format`.
+is not in well format`.
 
 ## Verification
 

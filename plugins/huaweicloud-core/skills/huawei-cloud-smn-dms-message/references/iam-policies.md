@@ -5,13 +5,13 @@ assignments that match the risk tier of the work being done. Never grant `admin`
 
 ## Minimal permission set
 
-| IAM Policy / Role | Grants | Used by |
-|-------------------|--------|---------|
-| `SMN Administrator` | Full SMN management (topics, subscriptions, templates, publishing) | R2/R1 SMN actions |
-| `SMN ReadOnlyAccess` | List/get SMN topics, subscriptions, templates | R3 SMN query & diagnose actions |
-| `DMS FullAccess` | Full DMS management across Kafka / RabbitMQ / RocketMQ | R2/R1 DMS actions |
-| `DMS User` | Read + manage DMS instances | R3 DMS query actions |
-| `VPC ReadOnlyAccess` (optional) | Read VPC/subnet/security-group IDs to pass to `CreateDmsInstance` | `huawei_create_dms_instance` |
+| IAM Policy / Role               | Grants                                                             | Used by                         |
+| ------------------------------- | ------------------------------------------------------------------ | ------------------------------- |
+| `SMN Administrator`             | Full SMN management (topics, subscriptions, templates, publishing) | R2/R1 SMN actions               |
+| `SMN ReadOnlyAccess`            | List/get SMN topics, subscriptions, templates                      | R3 SMN query & diagnose actions |
+| `DMS FullAccess`                | Full DMS management across Kafka / RabbitMQ / RocketMQ             | R2/R1 DMS actions               |
+| `DMS User`                      | Read + manage DMS instances                                        | R3 DMS query actions            |
+| `VPC ReadOnlyAccess` (optional) | Read VPC/subnet/security-group IDs to pass to `CreateDmsInstance`  | `huawei_create_dms_instance`    |
 
 ## Least-privilege custom policy (recommended)
 

@@ -2130,7 +2130,11 @@ function serviceCatalog(intent = '') {
       skills: ['huawei-cloud-eye'],
       services: ['CES'],
     },
-    { keywords: ['cts', 'audit', 'trace', 'tracker', '审计', '追踪'], skills: ['huawei-cloud-cts-trace-management'], services: ['CTS'] },
+    {
+      keywords: ['cts', 'audit', 'trace', 'tracker', '审计', '追踪'],
+      skills: ['huawei-cloud-cts-trace-management'],
+      services: ['CTS'],
+    },
     {
       keywords: ['cbr', 'backup', 'restore', 'vault', 'snapshot', '备份', '恢复', '快照', '存储库'],
       skills: ['huawei-cbr'],

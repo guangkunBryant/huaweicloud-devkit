@@ -24,6 +24,7 @@ Always run `hcloud <Service> <Operation> --help` before constructing commands to
 parameter names and requirements.
 
 <!-- cli-install-version: 3.9.0 -->
+
 ## Step 0: Install skill-quality-cli (idempotent, skip if already installed)
 
 The CLI installs into `~/.local/bin/`, which is **not always in `$PATH`** (bare `skill-quality-cli` can
@@ -49,19 +50,19 @@ bash scripts/ensure_cli.sh
 This skill provides AI Agent capabilities for Huawei Cloud DEW (Data Encryption Workshop / 数据加密服务),
 which bundles two services:
 
-| Service | Full name | Scope |
-| ------- | --------- | ----- |
-| CSMS | Cloud Secret Management Service | Secret lifecycle (metadata only — values are never fetched) |
-| KMS | Key Management Service | Customer master keys (CMK), encryption key lifecycle |
+| Service | Full name                       | Scope                                                       |
+| ------- | ------------------------------- | ----------------------------------------------------------- |
+| CSMS    | Cloud Secret Management Service | Secret lifecycle (metadata only — values are never fetched) |
+| KMS     | Key Management Service          | Customer master keys (CMK), encryption key lifecycle        |
 
 It enables four capability groups through 10 `huawei_*` actions:
 
-| Capability | Risk level | Actions |
-| ---------- | ---------- | ------- |
-| Query (read-only) | R3 — auto execute | `huawei_list_csms_secrets`, `huawei_describe_csms_secret`, `huawei_list_csms_secret_versions`, `huawei_list_kms_keys` |
-| Diagnose (read-only) | R3 — auto execute | `huawei_analyze_dew_rotation`, `huawei_analyze_dew_key_usage` |
-| Manage | R2 — preview + confirm | `huawei_create_kms_key`, `huawei_enable_csms_secret_rotation` |
-| Manage | R1 — preview + confirm | `huawei_update_csms_secret_version`, `huawei_delete_kms_key` |
+| Capability           | Risk level             | Actions                                                                                                               |
+| -------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Query (read-only)    | R3 — auto execute      | `huawei_list_csms_secrets`, `huawei_describe_csms_secret`, `huawei_list_csms_secret_versions`, `huawei_list_kms_keys` |
+| Diagnose (read-only) | R3 — auto execute      | `huawei_analyze_dew_rotation`, `huawei_analyze_dew_key_usage`                                                         |
+| Manage               | R2 — preview + confirm | `huawei_create_kms_key`, `huawei_enable_csms_secret_rotation`                                                         |
+| Manage               | R1 — preview + confirm | `huawei_update_csms_secret_version`, `huawei_delete_kms_key`                                                          |
 
 **Scope boundaries:**
 
@@ -76,13 +77,13 @@ It enables four capability groups through 10 `huawei_*` actions:
 
 ## Critical Warnings
 
-| Trap | Why |
-| ---- | --- |
-| NEVER fetch secret values into agent context | Use `{{resolve:csms:secret-id:SecretString:key}}` runtime injection instead |
-| NEVER echo credentials in conversation | AK/SK, passwords and tokens must never appear in agent output |
-| KMS key deletion is irreversible | Deletion is scheduled with a 7~1096 day (configurable, default 7) pending window; once the window passes the key and all data encrypted with it are unrecoverable |
-| Secret rotation requires automation | Manual rotation risks stale credentials; prefer automatic rotation with a rotation function |
-| Cross-account KMS needs grants | KMS keys are regional; cross-region/cross-account use requires grant setup |
+| Trap                                         | Why                                                                                                                                                               |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NEVER fetch secret values into agent context | Use `{{resolve:csms:secret-id:SecretString:key}}` runtime injection instead                                                                                       |
+| NEVER echo credentials in conversation       | AK/SK, passwords and tokens must never appear in agent output                                                                                                     |
+| KMS key deletion is irreversible             | Deletion is scheduled with a 7~1096 day (configurable, default 7) pending window; once the window passes the key and all data encrypted with it are unrecoverable |
+| Secret rotation requires automation          | Manual rotation risks stale credentials; prefer automatic rotation with a rotation function                                                                       |
+| Cross-account KMS needs grants               | KMS keys are regional; cross-region/cross-account use requires grant setup                                                                                        |
 
 ## Prerequisites
 
@@ -268,12 +269,12 @@ skill-quality-cli run --skill-name huawei-cloud-dew-key-management -- hcloud KMS
 The following operations are **BLOCKED** by this skill's policy — they would expose secret material.
 Never run them; use the safe alternative instead:
 
-| Blocked operation | Reason | Safe alternative |
-| ----------------- | ------ | ---------------- |
-| `CSMS DownloadSecretBlob` (blocked) | Downloads secret value blob | `{{resolve:csms:secret-id:SecretString:key}}` runtime injection in IaC/SDK at the consuming application |
-| `CSMS ShowSecretVersion` (blocked — value field) | Returns version payload | Runtime injection; never render the `secret_string` field |
-| `KMS DecryptData` (blocked) | Returns plaintext | Decrypt inside the application runtime, never in agent context |
-| `KMS CreateDatakey` / `CreateDatakeyWithoutPlaintext` (blocked — plaintext side) | Data key material | Envelope encryption inside application runtime |
+| Blocked operation                                                                | Reason                      | Safe alternative                                                                                        |
+| -------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `CSMS DownloadSecretBlob` (blocked)                                              | Downloads secret value blob | `{{resolve:csms:secret-id:SecretString:key}}` runtime injection in IaC/SDK at the consuming application |
+| `CSMS ShowSecretVersion` (blocked — value field)                                 | Returns version payload     | Runtime injection; never render the `secret_string` field                                               |
+| `KMS DecryptData` (blocked)                                                      | Returns plaintext           | Decrypt inside the application runtime, never in agent context                                          |
+| `KMS CreateDatakey` / `CreateDatakeyWithoutPlaintext` (blocked — plaintext side) | Data key material           | Envelope encryption inside application runtime                                                          |
 
 ## Runtime Injection Pattern
 
@@ -302,14 +303,14 @@ data "huaweicloud_csms_secret" "db" {
 
 ## Troubleshooting
 
-| Error | Root cause → Fix |
-| ----- | ---------------- |
-| Secret not found | Wrong region/project → verify the secret name and region (`--cli-region`) |
-| AccessDenied on CSMS | Missing IAM policy → add `csms:ShowSecret`/`csms:ListSecrets` + `kms:Decrypt` as needed (see `references/iam-policies.md`) |
-| KMS key disabled | Key scheduled for deletion or manually disabled → `hcloud KMS EnableKey --cli-region={region} --key_id={id}` or create a new key |
-| Rotation stuck | Rotation function (FUNC) error → check rotation function logs; verify `rotation_func_urn` |
-| CTS returns no data | Tracker not enabled or wrong `--trace_type` → create a tracker; use `system` for KMS control-plane (management) events |
-| ListKeys empty but keys exist | Wrong region/enterprise project → check `--cli-region`, `--enterprise_project_id` |
+| Error                         | Root cause → Fix                                                                                                                 |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Secret not found              | Wrong region/project → verify the secret name and region (`--cli-region`)                                                        |
+| AccessDenied on CSMS          | Missing IAM policy → add `csms:ShowSecret`/`csms:ListSecrets` + `kms:Decrypt` as needed (see `references/iam-policies.md`)       |
+| KMS key disabled              | Key scheduled for deletion or manually disabled → `hcloud KMS EnableKey --cli-region={region} --key_id={id}` or create a new key |
+| Rotation stuck                | Rotation function (FUNC) error → check rotation function logs; verify `rotation_func_urn`                                        |
+| CTS returns no data           | Tracker not enabled or wrong `--trace_type` → create a tracker; use `system` for KMS control-plane (management) events           |
+| ListKeys empty but keys exist | Wrong region/enterprise project → check `--cli-region`, `--enterprise_project_id`                                                |
 
 ## Security Considerations
 
@@ -323,13 +324,13 @@ data "huaweicloud_csms_secret" "db" {
 
 ## KooCLI Command Format Standard
 
-| Feature | Description | Example |
-| ------- | ----------- | ------- |
-| Service name | `CSMS`, `KMS`, `CTS` (as shown by `hcloud <service> --help`; metadata dirs are lowercase `csms`/`kms`/`cts`) | `hcloud CSMS ListSecrets --cli-region=cn-north-4` |
-| Operation name | PascalCase | `ListSecrets`, `ShowSecret`, `UpdateSecret`, `RotateSecret`, `CreateKey`, `DeleteKey`, `ListTraces` |
-| Region parameter | `--cli-region=<value>` | `--cli-region=cn-north-4` |
-| Simple parameter | `--key=value` | `--secret_name=prod-db-password` |
-| Indexed parameter | `--key.N=value` | `--event_subscriptions.1=urn:smn:...` |
+| Feature           | Description                                                                                                  | Example                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| Service name      | `CSMS`, `KMS`, `CTS` (as shown by `hcloud <service> --help`; metadata dirs are lowercase `csms`/`kms`/`cts`) | `hcloud CSMS ListSecrets --cli-region=cn-north-4`                                                   |
+| Operation name    | PascalCase                                                                                                   | `ListSecrets`, `ShowSecret`, `UpdateSecret`, `RotateSecret`, `CreateKey`, `DeleteKey`, `ListTraces` |
+| Region parameter  | `--cli-region=<value>`                                                                                       | `--cli-region=cn-north-4`                                                                           |
+| Simple parameter  | `--key=value`                                                                                                | `--secret_name=prod-db-password`                                                                    |
+| Indexed parameter | `--key.N=value`                                                                                              | `--event_subscriptions.1=urn:smn:...`                                                               |
 
 ## Parameter Confirmation
 
@@ -337,46 +338,46 @@ All parameters below were verified against `hcloud <Service> <Operation> --help`
 
 ### CSMS
 
-| Operation | Parameter | Type | Required | Example |
-| --------- | --------- | ---- | -------- | ------- |
-| ListSecrets | `--limit` | int | No | `--limit=50` |
-| ListSecrets | `--marker` | string | No | `--marker=<last_secret_name>` |
-| ListSecrets | `--event_name` | string | No | `--event_name=my-event` |
-| ShowSecret | `--secret_name` | string | **Yes** | `--secret_name=prod-db-password` |
-| ListSecretVersions | `--secret_name` | string | **Yes** | `--secret_name=prod-db-password` |
-| ListSecretVersions | `--limit` | int | No | `--limit=20` |
-| UpdateSecret | `--secret_name` | string | **Yes** | `--secret_name=prod-db-password` |
-| UpdateSecret | `--auto_rotation` | bool | **Yes (for rotation)** | `--auto_rotation=true` |
-| UpdateSecret | `--rotation_period` | string | No | `--rotation_period=30d` |
-| UpdateSecret | `--rotation_func_urn` | string | No | `--rotation_func_urn=urn:fss:cn-north-4:...` |
-| UpdateSecret | `--description` | string | No | `--description="db password"` |
-| RotateSecret | `--secret_name` | string | **Yes** | `--secret_name=prod-db-password` |
+| Operation          | Parameter             | Type   | Required               | Example                                      |
+| ------------------ | --------------------- | ------ | ---------------------- | -------------------------------------------- |
+| ListSecrets        | `--limit`             | int    | No                     | `--limit=50`                                 |
+| ListSecrets        | `--marker`            | string | No                     | `--marker=<last_secret_name>`                |
+| ListSecrets        | `--event_name`        | string | No                     | `--event_name=my-event`                      |
+| ShowSecret         | `--secret_name`       | string | **Yes**                | `--secret_name=prod-db-password`             |
+| ListSecretVersions | `--secret_name`       | string | **Yes**                | `--secret_name=prod-db-password`             |
+| ListSecretVersions | `--limit`             | int    | No                     | `--limit=20`                                 |
+| UpdateSecret       | `--secret_name`       | string | **Yes**                | `--secret_name=prod-db-password`             |
+| UpdateSecret       | `--auto_rotation`     | bool   | **Yes (for rotation)** | `--auto_rotation=true`                       |
+| UpdateSecret       | `--rotation_period`   | string | No                     | `--rotation_period=30d`                      |
+| UpdateSecret       | `--rotation_func_urn` | string | No                     | `--rotation_func_urn=urn:fss:cn-north-4:...` |
+| UpdateSecret       | `--description`       | string | No                     | `--description="db password"`                |
+| RotateSecret       | `--secret_name`       | string | **Yes**                | `--secret_name=prod-db-password`             |
 
 ### KMS
 
-| Operation | Parameter | Type | Required | Example |
-| --------- | --------- | ---- | -------- | ------- |
-| ListKeys | `--key_state` | string | No | `--key_state=2` (enabled) |
-| ListKeys | `--key_spec` | string | No | `--key_spec=AES_256` |
-| ListKeys | `--limit` | int | No | `--limit=50` |
-| CreateKey | `--key_alias` | string | **Yes** | `--key_alias=app-encryption-key` |
-| CreateKey | `--key_description` | string | No | `--key_description="Application data encryption"` |
-| CreateKey | `--key_spec` | string | No | `--key_spec=AES_256` (default) |
-| CreateKey | `--key_usage` | string | No | `--key_usage=ENCRYPT_DECRYPT` (default) |
-| DeleteKey | `--key_id` | string | **Yes** | `--key_id={key_id}` |
-| DeleteKey | `--pending_days` | string | **Yes** | `--pending_days=7` (7-1096) |
-| ShowKeyRotationStatus | `--key_id` | string | **Yes** | `--key_id={key_id}` |
+| Operation             | Parameter           | Type   | Required | Example                                           |
+| --------------------- | ------------------- | ------ | -------- | ------------------------------------------------- |
+| ListKeys              | `--key_state`       | string | No       | `--key_state=2` (enabled)                         |
+| ListKeys              | `--key_spec`        | string | No       | `--key_spec=AES_256`                              |
+| ListKeys              | `--limit`           | int    | No       | `--limit=50`                                      |
+| CreateKey             | `--key_alias`       | string | **Yes**  | `--key_alias=app-encryption-key`                  |
+| CreateKey             | `--key_description` | string | No       | `--key_description="Application data encryption"` |
+| CreateKey             | `--key_spec`        | string | No       | `--key_spec=AES_256` (default)                    |
+| CreateKey             | `--key_usage`       | string | No       | `--key_usage=ENCRYPT_DECRYPT` (default)           |
+| DeleteKey             | `--key_id`          | string | **Yes**  | `--key_id={key_id}`                               |
+| DeleteKey             | `--pending_days`    | string | **Yes**  | `--pending_days=7` (7-1096)                       |
+| ShowKeyRotationStatus | `--key_id`          | string | **Yes**  | `--key_id={key_id}`                               |
 
 ### CTS
 
-| Operation | Parameter | Type | Required | Example |
-| --------- | --------- | ---- | -------- | ------- |
-| ListTraces | `--trace_type` | string | **Yes** | `--trace_type=system` (system=管理事件, data=数据事件) |
-| ListTraces | `--service_type` | string | No | `--service_type=KMS` |
-| ListTraces | `--trace_name` | string | No | `--trace_name=DeleteKey` |
-| ListTraces | `--resource_type` | string | No | `--resource_type=cmk` |
-| ListTraces | `--from` / `--to` | string | No | `--from=2026-08-01T00:00:00Z` |
-| ListTraces | `--limit` | int | No | `--limit=50` |
+| Operation  | Parameter         | Type   | Required | Example                                                |
+| ---------- | ----------------- | ------ | -------- | ------------------------------------------------------ |
+| ListTraces | `--trace_type`    | string | **Yes**  | `--trace_type=system` (system=管理事件, data=数据事件) |
+| ListTraces | `--service_type`  | string | No       | `--service_type=KMS`                                   |
+| ListTraces | `--trace_name`    | string | No       | `--trace_name=DeleteKey`                               |
+| ListTraces | `--resource_type` | string | No       | `--resource_type=cmk`                                  |
+| ListTraces | `--from` / `--to` | string | No       | `--from=2026-08-01T00:00:00Z`                          |
+| ListTraces | `--limit`         | int    | No       | `--limit=50`                                           |
 
 Common to all operations: `--cli-region` (required), `--project_id` (required by API but auto-filled
 from the authenticated profile when omitted).

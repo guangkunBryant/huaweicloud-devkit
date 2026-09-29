@@ -53,12 +53,12 @@ hcloud configure init
 
 KooCLI reads the following environment variables (among others):
 
-| Variable | Meaning |
-|----------|---------|
-| `HUAWEICLOUD_SDK_AK` / `HUAWEI_ACCESS_KEY` | Access Key ID |
-| `HUAWEICLOUD_SDK_SK` / `HUAWEI_SECRET_KEY` | Secret Access Key |
-| `HUAWEICLOUD_SDK_PROJECT_ID` / `HUAWEI_PROJECT_ID` | Project ID (optional; KooCLI can resolve it) |
-| `HUAWEICLOUD_SDK_SECURITY_TOKEN` | Security token (only for temporary credentials) |
+| Variable                                           | Meaning                                         |
+| -------------------------------------------------- | ----------------------------------------------- |
+| `HUAWEICLOUD_SDK_AK` / `HUAWEI_ACCESS_KEY`         | Access Key ID                                   |
+| `HUAWEICLOUD_SDK_SK` / `HUAWEI_SECRET_KEY`         | Secret Access Key                               |
+| `HUAWEICLOUD_SDK_PROJECT_ID` / `HUAWEI_PROJECT_ID` | Project ID (optional; KooCLI can resolve it)    |
+| `HUAWEICLOUD_SDK_SECURITY_TOKEN`                   | Security token (only for temporary credentials) |
 
 Example:
 
@@ -83,9 +83,9 @@ project of the region from the authentication information, then the profile's
 
 ## 4. Troubleshooting
 
-| Symptom | Fix |
-|---------|-----|
-| `hcloud APIG --help` fails | Update KooCLI: `hcloud update -y` |
-| `Missing required parameter(s)` | Check `hcloud APIG <Op> --help` for required params and include them |
-| `Authentication failed` / 401 | Re-run `hcloud configure` or refresh AK/SK env vars |
-| `No such operation` | Operation names change across API versions — enumerate with `hcloud APIG --help` |
+| Symptom                         | Fix                                                                              |
+| ------------------------------- | -------------------------------------------------------------------------------- |
+| `hcloud APIG --help` fails      | Update KooCLI: `hcloud update -y`                                                |
+| `Missing required parameter(s)` | Check `hcloud APIG <Op> --help` for required params and include them             |
+| `Authentication failed` / 401   | Re-run `hcloud configure` or refresh AK/SK env vars                              |
+| `No such operation`             | Operation names change across API versions — enumerate with `hcloud APIG --help` |

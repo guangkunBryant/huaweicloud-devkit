@@ -5,12 +5,12 @@ are gated (R2/R1 preview + confirm). **Never decrypt inside the agent context.**
 
 ## Action reference
 
-| huawei_* action | CLI command | Level |
-| --------------- | ----------- | ----- |
-| `huawei_list_kms_keys` | `hcloud KMS ListKeys --cli-region={region}` | R3 auto |
-| `huawei_create_kms_key` | `hcloud KMS CreateKey --cli-region={region} --key_alias={alias}` | R2 confirm |
-| `huawei_delete_kms_key` | `hcloud KMS DeleteKey --cli-region={region} --key_id={id} --pending_days=7` | R1 confirm, irreversible |
-| `huawei_analyze_dew_rotation` (KMS side) | `hcloud KMS ShowKeyRotationStatus --cli-region={region} --key_id={id}` | R3 auto |
+| huawei_* action                          | CLI command                                                                 | Level                    |
+| ---------------------------------------- | --------------------------------------------------------------------------- | ------------------------ |
+| `huawei_list_kms_keys`                   | `hcloud KMS ListKeys --cli-region={region}`                                 | R3 auto                  |
+| `huawei_create_kms_key`                  | `hcloud KMS CreateKey --cli-region={region} --key_alias={alias}`            | R2 confirm               |
+| `huawei_delete_kms_key`                  | `hcloud KMS DeleteKey --cli-region={region} --key_id={id} --pending_days=7` | R1 confirm, irreversible |
+| `huawei_analyze_dew_rotation` (KMS side) | `hcloud KMS ShowKeyRotationStatus --cli-region={region} --key_id={id}`      | R3 auto                  |
 
 ## Examples
 
@@ -50,20 +50,20 @@ hcloud KMS DeleteKey --cli-region=cn-north-4 --key_id={key_id} --pending_days=7
 - **After the window passes, the key is permanently deleted and data encrypted with it is
   UNRECOVERABLE.** Always show this warning and require explicit confirmation (R1).
 
-> Note: `hcloud KMS DeleteKey` maps to the *schedule-key-deletion* API
+> Note: `hcloud KMS DeleteKey` maps to the _schedule-key-deletion_ API
 > (endpoint `POST /v1.0/{project_id}/kms/schedule-key-deletion`).
 
 ## Encrypt / decrypt policy
 
-| Operation | Policy |
-| --------- | ------ |
-| `hcloud KMS ListKeys` | **ALLOWED** (metadata only) |
-| `hcloud KMS ListKeyDetail` | **ALLOWED** (metadata only) |
-| `hcloud KMS ShowKeyRotationStatus` | **ALLOWED** (metadata only) |
-| `hcloud KMS CreateKey` | ALLOWED (R2 preview + confirm) |
-| `hcloud KMS DeleteKey` (schedule deletion) | ALLOWED (R1 preview + confirm, irreversible warning) |
-| `hcloud KMS EncryptData` | ALLOWED for approved automation only — prefer offline SDK encryption |
-| `hcloud KMS DecryptData` | **BLOCKED** — use runtime injection / SDK in application runtime |
+| Operation                                   | Policy                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------- |
+| `hcloud KMS ListKeys`                       | **ALLOWED** (metadata only)                                               |
+| `hcloud KMS ListKeyDetail`                  | **ALLOWED** (metadata only)                                               |
+| `hcloud KMS ShowKeyRotationStatus`          | **ALLOWED** (metadata only)                                               |
+| `hcloud KMS CreateKey`                      | ALLOWED (R2 preview + confirm)                                            |
+| `hcloud KMS DeleteKey` (schedule deletion)  | ALLOWED (R1 preview + confirm, irreversible warning)                      |
+| `hcloud KMS EncryptData`                    | ALLOWED for approved automation only — prefer offline SDK encryption      |
+| `hcloud KMS DecryptData`                    | **BLOCKED** — use runtime injection / SDK in application runtime          |
 | `hcloud KMS CreateDatakey` (plaintext side) | **BLOCKED** in agent context — envelope encryption in application runtime |
 
 Endpoint (verified): `POST /v1.0/{project_id}/kms/list-keys`,

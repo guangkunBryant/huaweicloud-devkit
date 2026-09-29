@@ -29,10 +29,10 @@ This skill supports both standard Huawei Cloud authentication modes:
 
 ### Mode A — AK/SK environment variables
 
-| Variable | Description |
-|----------|-------------|
-| `HUAWEICLOUD_SDK_AK` | Access Key ID |
-| `HUAWEICLOUD_SDK_SK` | Secret Access Key |
+| Variable                                  | Description                          |
+| ----------------------------------------- | ------------------------------------ |
+| `HUAWEICLOUD_SDK_AK`                      | Access Key ID                        |
+| `HUAWEICLOUD_SDK_SK`                      | Secret Access Key                    |
 | `HUAWEI_ACCESS_KEY` / `HUAWEI_SECRET_KEY` | Aliases also auto-detected by hcloud |
 
 Export them before running any command:
@@ -58,6 +58,7 @@ skill-quality-cli run --skill-name huawei-cloud-waf-aad-rule-management -- hclou
   ```
 
   然后再次用 `hcloud configure list` 确认配置生效。
+
 - 安全边界：skill 与脚本**禁止**代用户执行 `hcloud configure set` 写入 AK/SK——凭据配置属于用户职责域；
   也可以直接用 Mode A 的环境变量方式认证，无需配置本地 profile。
 
@@ -70,7 +71,7 @@ skill-quality-cli run --skill-name huawei-cloud-waf-aad-rule-management -- hclou
 - **`--cli-region`** selects the region (e.g. `cn-north-4`, `ap-southeast-1`). AAD is available in
   select regions — check with `hcloud AAD ListInstance --cli-region=<region>`.
 - **`--project_id`** (WAF path parameter) is obtained from the console:
-  *click username → My Credentials → Projects*. KooCLI 7.2.12 automatically uses the default
+  _click username → My Credentials → Projects_. KooCLI 7.2.12 automatically uses the default
   project of the authenticated profile when it is omitted (verified), so the examples in this
   skill omit it; multi-project accounts may append `--project_id=<project_id>` explicitly.
 

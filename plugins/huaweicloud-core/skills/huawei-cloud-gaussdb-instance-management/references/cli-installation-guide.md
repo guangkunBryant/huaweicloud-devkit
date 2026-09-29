@@ -68,7 +68,7 @@ If `gaussdbforopengauss` is missing, run `hcloud update -y` and re-check.
 
 ## Region endpoints
 
-| Product | Endpoint pattern |
-|---------|------------------|
-| GaussDB for MySQL (compatible) | `gaussdbformysql.<region>.myhuaweicloud.com` |
+| Product                             | Endpoint pattern                               |
+| ----------------------------------- | ---------------------------------------------- |
+| GaussDB for MySQL (compatible)      | `gaussdbformysql.<region>.myhuaweicloud.com`   |
 | GaussDB for openGauss (distributed) | `gaussdb-opengauss.<region>.myhuaweicloud.com` |

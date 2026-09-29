@@ -13,6 +13,7 @@ tags: [huawei-cloud, dds, dcs, database, cache]
 ---
 
 <!-- cli-install-version: 3.9.0 -->
+
 ## Step 0: Install skill-quality-cli (idempotent, skip if already installed)
 
 The CLI installs into `~/.local/bin/`, which is **not always in `$PATH`** (bare `skill-quality-cli` can fail with exit 127). Export it first, then run the installer (it also persists the PATH export into `~/.bashrc` / `~/.profile` for future shells):
@@ -21,37 +22,38 @@ The CLI installs into `~/.local/bin/`, which is **not always in `$PATH`** (bare 
 export PATH="$HOME/.local/bin:$PATH"
 bash scripts/ensure_cli.sh
 ```
+
 > The script detects whether `skill-quality-cli` is available (via PATH, falling back to the absolute path `~/.local/bin/skill-quality-cli`); if not, it **deploys the skill's own bundled CLI source** (`scripts/cli/cli_entry.py` + `scripts/cli/cli_reporting.py`) into `~/.local/bin/` as a local wrapper — **no external download, no runtime curl** (SC2 supply-chain safe, version pinned to the bundled `1.1.8`). It re-exports PATH for the current session and persists it into `~/.bashrc` / `~/.profile`. Silently skipped when the bundled source is missing — never blocks the business flow. If the bare command is still not found afterwards, call the absolute path: `~/.local/bin/skill-quality-cli`.
 
 ## Overview
 
 This skill provides comprehensive management for two Huawei Cloud middleware services:
 
-| Service | Engine Types | Category |
-|---------|-------------|----------|
+| Service                             | Engine Types                | Category                       |
+| ----------------------------------- | --------------------------- | ------------------------------ |
 | **DDS** (Document Database Service) | DDS-Community, DDS-Enhanced | MongoDB-compatible document DB |
-| **DCS** (Distributed Cache Service) | Redis, Memcached | In-memory cache |
+| **DCS** (Distributed Cache Service) | Redis, Memcached            | In-memory cache                |
 
 ### Capability Matrix
 
-| # | Action | Service | Mode | Severity |
-|---|--------|---------|------|----------|
-| 1 | `huawei_list_dds_instances` | DDS | CLI | R3 Query |
-| 2 | `huawei_get_dds_instance` | DDS | CLI | R3 Query |
-| 3 | `huawei_list_dcs_instances` | DCS | CLI | R3 Query |
-| 4 | `huawei_get_dcs_nodes_information` | DCS | SDK | R3 Query |
-| 5 | `huawei_list_dcs_custom_templates` | DCS | SDK | R3 Query |
-| 6 | `huawei_analyze_dds_deployment` | DDS | CLI | R3 Analysis |
-| 7 | `huawei_analyze_dcs_security` | DCS | CLI+SDK | R3 Analysis |
-| 8 | `huawei_create_dds_instance` | DDS | CLI | R2 Mgmt |
-| 9 | `huawei_add_dds_readonly_node` | DDS | CLI | R2 Mgmt |
-| 10 | `huawei_add_dds_sharding_node` | DDS | CLI | R2 Mgmt |
-| 11 | `huawei_create_dds_backup` | DDS | CLI | R2 Mgmt |
-| 12 | `huawei_create_dcs_instance` | DCS | SDK | R2 Mgmt |
-| 13 | `huawei_create_dcs_custom_template` | DCS | SDK | R2 Mgmt |
-| 14 | `huawei_delete_dds_instance` | DDS | CLI | R1 Mgmt |
-| 15 | `huawei_delete_dcs_instance` | DCS | CLI | R1 Mgmt |
-| 16 | `huawei_restart_dcs_instance` | DCS | CLI | R1 Mgmt |
+| #   | Action                              | Service | Mode    | Severity    |
+| --- | ----------------------------------- | ------- | ------- | ----------- |
+| 1   | `huawei_list_dds_instances`         | DDS     | CLI     | R3 Query    |
+| 2   | `huawei_get_dds_instance`           | DDS     | CLI     | R3 Query    |
+| 3   | `huawei_list_dcs_instances`         | DCS     | CLI     | R3 Query    |
+| 4   | `huawei_get_dcs_nodes_information`  | DCS     | SDK     | R3 Query    |
+| 5   | `huawei_list_dcs_custom_templates`  | DCS     | SDK     | R3 Query    |
+| 6   | `huawei_analyze_dds_deployment`     | DDS     | CLI     | R3 Analysis |
+| 7   | `huawei_analyze_dcs_security`       | DCS     | CLI+SDK | R3 Analysis |
+| 8   | `huawei_create_dds_instance`        | DDS     | CLI     | R2 Mgmt     |
+| 9   | `huawei_add_dds_readonly_node`      | DDS     | CLI     | R2 Mgmt     |
+| 10  | `huawei_add_dds_sharding_node`      | DDS     | CLI     | R2 Mgmt     |
+| 11  | `huawei_create_dds_backup`          | DDS     | CLI     | R2 Mgmt     |
+| 12  | `huawei_create_dcs_instance`        | DCS     | SDK     | R2 Mgmt     |
+| 13  | `huawei_create_dcs_custom_template` | DCS     | SDK     | R2 Mgmt     |
+| 14  | `huawei_delete_dds_instance`        | DDS     | CLI     | R1 Mgmt     |
+| 15  | `huawei_delete_dcs_instance`        | DCS     | CLI     | R1 Mgmt     |
+| 16  | `huawei_restart_dcs_instance`       | DCS     | CLI     | R1 Mgmt     |
 
 ### Architecture
 
@@ -67,24 +69,24 @@ User Request → Action Router
 
 ## Prerequisites
 
-| Requirement | Description |
-|-------------|-------------|
-| **hcloud CLI** | Installed and authenticated. See `references/cli-installation-guide.md` |
-| **Python 3.8+** | For SDK fallback operations (DCS) |
-| **SDK packages** | `pip install huaweicloudsdkdcs huaweicloudsdkdds` |
-| **AK/SK Auth** | `HUAWEI_ACCESS_KEY`/`HUAWEI_SECRET_KEY` or `HWC_AK`/`HWC_SK` env vars |
-| **IAM Permissions** | DDS and DCS read/write perms. See `references/iam-policies.md` |
-| **Default Region** | `cn-north-4` (override with `--cli-region`) |
+| Requirement         | Description                                                             |
+| ------------------- | ----------------------------------------------------------------------- |
+| **hcloud CLI**      | Installed and authenticated. See `references/cli-installation-guide.md` |
+| **Python 3.8+**     | For SDK fallback operations (DCS)                                       |
+| **SDK packages**    | `pip install huaweicloudsdkdcs huaweicloudsdkdds`                       |
+| **AK/SK Auth**      | `HUAWEI_ACCESS_KEY`/`HUAWEI_SECRET_KEY` or `HWC_AK`/`HWC_SK` env vars   |
+| **IAM Permissions** | DDS and DCS read/write perms. See `references/iam-policies.md`          |
+| **Default Region**  | `cn-north-4` (override with `--cli-region`)                             |
 
 ### Quality Reporting Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SKILL_QUALITY_ENDPOINT` | No | Report endpoint (default: skillsapi.developer.myhuaweicloud.com) |
-| `SKILL_QUALITY_DISABLE` | No | Set `1` to disable (local debugging) |
-| `SKILL_QUALITY_REPORT` | No | v1.1.8 opt-out: set `0` to skip reporting (command still runs) |
-| `SKILL_QUALITY_SESSION_ID` | No | Session ID override (v1.1.8 三渠道: `--session-id` > env > qcfg > host) |
-| `SKILL_QUALITY_TIMEOUT` | No | Timeout seconds (default 3) |
+| Variable                   | Required | Description                                                             |
+| -------------------------- | -------- | ----------------------------------------------------------------------- |
+| `SKILL_QUALITY_ENDPOINT`   | No       | Report endpoint (default: skillsapi.developer.myhuaweicloud.com)        |
+| `SKILL_QUALITY_DISABLE`    | No       | Set `1` to disable (local debugging)                                    |
+| `SKILL_QUALITY_REPORT`     | No       | v1.1.8 opt-out: set `0` to skip reporting (command still runs)          |
+| `SKILL_QUALITY_SESSION_ID` | No       | Session ID override (v1.1.8 三渠道: `--session-id` > env > qcfg > host) |
+| `SKILL_QUALITY_TIMEOUT`    | No       | Timeout seconds (default 3)                                             |
 
 ---
 
@@ -410,14 +412,14 @@ hcloud DCS RestartOrFlushInstances --cli-region={region} --instances.1={id1} --i
 
 > **格式模板（占位示例，不可直接执行）**：`hcloud DDS|DCS <Operation> --cli-region=<region> [--key=value ...]`
 
-| Feature | Description | Example |
-|---------|-------------|---------|
-| Service | Service name (uppercase) | `DDS`, `DCS` |
-| Operation | PascalCase | `ListInstances`, `CreateInstance` |
-| Region | `--cli-region=value` | `cn-north-4` |
-| Simple param | `--key=value` | `--instance_id=xxx` |
-| Indexed param | `--key.N=value` | `--flavor.1.num=3` |
-| Nested param | `--parent.child=value` | `--datastore.type=DDS-Community` |
+| Feature       | Description              | Example                           |
+| ------------- | ------------------------ | --------------------------------- |
+| Service       | Service name (uppercase) | `DDS`, `DCS`                      |
+| Operation     | PascalCase               | `ListInstances`, `CreateInstance` |
+| Region        | `--cli-region=value`     | `cn-north-4`                      |
+| Simple param  | `--key=value`            | `--instance_id=xxx`               |
+| Indexed param | `--key.N=value`          | `--flavor.1.num=3`                |
+| Nested param  | `--parent.child=value`   | `--datastore.type=DDS-Community`  |
 
 All mutating operations must include `--project_id` (auto-resolved from hcloud profile).
 
@@ -427,18 +429,18 @@ All mutating operations must include `--project_id` (auto-resolved from hcloud p
 
 See `references/related-commands.md` for detailed parameter tables per action.
 
-| Key Parameter | Service | Required For | Description |
-|--------------|---------|-------------|-------------|
-| `instance_id` | DDS/DCS | Show/Delete/AddNode/Restart | Instance UUID |
-| `name` | DDS/DCS | Create/List | Instance name |
-| `datastore.*` | DDS | Create | Database type, version, engine |
-| `flavor.[N].*` | DDS | Create/AddNode | Node type, count, spec |
-| `vpc_id` / `subnet_id` / `security_group_id` | DDS | Create | Network: VPC, subnet, security group (all required) |
-| `spec_code` | DDS | AddReadonlyNode/AddShardingNode/Create | Instance/flavor spec code (required on DDS body ops) |
-| `capacity` | DCS | Create | Cache capacity (GB) |
-| `engine` | DCS | Create/Templates | `Redis` or `Memcached` |
-| `type` (template) | DCS | List/Create | Template scope: `sys` or `user` |
-| `action` | DCS | Restart | `restart`, `soft_restart`, or `flush` |
+| Key Parameter                                | Service | Required For                           | Description                                          |
+| -------------------------------------------- | ------- | -------------------------------------- | ---------------------------------------------------- |
+| `instance_id`                                | DDS/DCS | Show/Delete/AddNode/Restart            | Instance UUID                                        |
+| `name`                                       | DDS/DCS | Create/List                            | Instance name                                        |
+| `datastore.*`                                | DDS     | Create                                 | Database type, version, engine                       |
+| `flavor.[N].*`                               | DDS     | Create/AddNode                         | Node type, count, spec                               |
+| `vpc_id` / `subnet_id` / `security_group_id` | DDS     | Create                                 | Network: VPC, subnet, security group (all required)  |
+| `spec_code`                                  | DDS     | AddReadonlyNode/AddShardingNode/Create | Instance/flavor spec code (required on DDS body ops) |
+| `capacity`                                   | DCS     | Create                                 | Cache capacity (GB)                                  |
+| `engine`                                     | DCS     | Create/Templates                       | `Redis` or `Memcached`                               |
+| `type` (template)                            | DCS     | List/Create                            | Template scope: `sys` or `user`                      |
+| `action`                                     | DCS     | Restart                                | `restart`, `soft_restart`, or `flush`                |
 
 ---
 
@@ -455,12 +457,12 @@ non-blocking and fails silently — it never interrupts the Skill main flow. Dis
 
 ## Critical Warnings
 
-| Action | Warning |
-|--------|---------|
-| `create_dds_instance` / `create_dcs_instance` | Creates billable resources. Always confirm with user. |
-| `add_dds_readonly_node` / `add_dds_sharding_node` | Adds billable nodes. Confirm count/spec with user. |
-| `delete_dds_instance` / `delete_dcs_instance` | **Permanently deletes ALL data.** Double-confirm; recommend backup. |
-| `restart_dcs_instance` with `action=flush` | **Permanently deletes all cached data.** Confirm action type. |
+| Action                                            | Warning                                                             |
+| ------------------------------------------------- | ------------------------------------------------------------------- |
+| `create_dds_instance` / `create_dcs_instance`     | Creates billable resources. Always confirm with user.               |
+| `add_dds_readonly_node` / `add_dds_sharding_node` | Adds billable nodes. Confirm count/spec with user.                  |
+| `delete_dds_instance` / `delete_dcs_instance`     | **Permanently deletes ALL data.** Double-confirm; recommend backup. |
+| `restart_dcs_instance` with `action=flush`        | **Permanently deletes all cached data.** Confirm action type.       |
 
 ---
 
@@ -501,6 +503,7 @@ hcloud configure set --cli-profile=default --cli-region=cn-north-4
 - `references/related-commands.md` — Full command reference
 
 <!-- cli-inject-version: 3.9.0 -->
+
 ## Quality Reporting (Unified CLI)
 
 > CLI installation: see "Step 0: Install skill-quality-cli" at the top of this document (idempotent, skips instantly if installed).
@@ -510,13 +513,17 @@ Report execution quality on every run of this skill, using either mode below. Th
 > **⚠️ PATH note: the CLI is installed to `~/.local/bin/`, which is NOT always in `$PATH` in some environments. If `skill-quality-cli: command not found` (exit 127) appears, run `export PATH="$HOME/.local/bin:$PATH"` first (ensure_cli.sh does this automatically), then retry; or call the absolute path `~/.local/bin/skill-quality-cli` directly.**
 
 ### Mode 1 (recommended, automatic) — wrap the whole execution
+
 For script/command-style skills, wrap the entire command with `run`:
+
 ```bash
 skill-quality-cli run --skill-name <skill-name> -- <your command>
 ```
 
 ### Mode 2 (multi-step / instruction-style skills)
+
 Report once per step (callable multiple times):
+
 ```bash
 skill-quality-cli report --skill-name <skill-name> --status <success|sys_fail|biz_fail|cancel>
 ```
@@ -524,6 +531,7 @@ skill-quality-cli report --skill-name <skill-name> --status <success|sys_fail|bi
 > **⚠️ Mandatory rule (quality reporting only): at execution time this skill reports every command by wrapping it with `skill-quality-cli run --skill-name huawei-cloud-dds-dcs-instance-management -- <command>`. The wrapper is a pure reporting bypass: it passes the command through unchanged, and every `hcloud <Service> <Operation> ...` documented in the Workflow sections remains directly executable via `hcloud` — that native form is the authoritative, parseable command format.**
 
 ### CLI installation & auto-update
+
 - **Local install**: run `bash scripts/ensure_cli.sh` before execution (idempotent, skips if installed). It deploys the **bundled** CLI source from this skill (`scripts/cli/`) — no external download (SC2).
 - **Installed CLI**: the bundled version is fixed (v1.1.8) and does NOT auto-download/upgrade from the network. `--no-auto-upgrade` is accepted for compatibility but is a no-op.
 - **Manual cold-start (fallback)**: if `ensure_cli.sh` is unavailable, deploy the bundled source directly:
@@ -537,6 +545,8 @@ skill-quality-cli report --skill-name <skill-name> --status <success|sys_fail|bi
 - Current version is recorded in `~/.skill-quality/version.json`; `bootstrap`/`install` deploy the pinned bundled version only.
 
 ### Tool parameter validation (TM1)
+
 Every command wrapped via `skill-quality-cli run` is validated before execution:
+
 - **Whitelist**: only the `hcloud` CLI may be wrapped — any other executable is rejected outright.
 - **Type/character check**: every argument must be a plain string composed only of safe characters (`[A-Za-z0-9_\-.,:=/{}@]`); anything else (shell metacharacters, `$()`, backticks, spaces-as-arg, etc.) is rejected with an error before the subprocess starts, so no illegal input can reach the tool.

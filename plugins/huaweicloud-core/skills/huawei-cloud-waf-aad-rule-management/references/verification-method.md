@@ -14,20 +14,20 @@ skill-quality-cli run --skill-name huawei-cloud-waf-aad-rule-management -- hclou
 
 ## 2. Read-only verification (R3 — runs automatically)
 
-| Case | Command | Expected |
-|------|---------|----------|
-| List WAF instances | `hcloud WAF ListInstance --cli-region=<region> --project_id=<project_id>` | HTTP 200 JSON list (may be empty if no dedicated instance) |
-| List protected domains | `hcloud WAF ListCompositeHosts --cli-region=<region> --project_id=<project_id>` | JSON list of hosts with CNAME/access status |
-| List policies | `hcloud WAF ListPolicy --cli-region=<region> --project_id=<project_id>` | JSON list of policies |
-| List custom rules | `hcloud WAF ListCustomRules --cli-region=<region> --project_id=<project_id> --policy_id=<policy_id>` | JSON list of rules |
-| List IP black/white rules | `hcloud WAF ListWhiteblackipRule ...` | JSON list |
-| List CC rules | `hcloud WAF ListCcRules ...` | JSON list |
-| List geo rules | `hcloud WAF ListGeoipRule ...` | JSON list |
-| Show composite host | `hcloud WAF ShowCompositeHost --cli-region=<region> --project_id=<project_id> --host_id=<host_id>` | JSON detail with CNAME |
-| List AAD instances | `hcloud AAD ListInstance --cli-region=<region>` | JSON list of instances |
-| List AAD packages | `hcloud AAD ListPackage --cli-region=<region>` | JSON list of packages |
-| List protected IPs | `hcloud AAD ListProtectedIp --cli-region=<region>` | JSON list of EIPs |
-| List unbound IPs | `hcloud AAD ListUnboundProtectedIp --cli-region=<region> --package_id=<package_id>` | JSON list of unbound EIPs |
+| Case                      | Command                                                                                              | Expected                                                   |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| List WAF instances        | `hcloud WAF ListInstance --cli-region=<region> --project_id=<project_id>`                            | HTTP 200 JSON list (may be empty if no dedicated instance) |
+| List protected domains    | `hcloud WAF ListCompositeHosts --cli-region=<region> --project_id=<project_id>`                      | JSON list of hosts with CNAME/access status                |
+| List policies             | `hcloud WAF ListPolicy --cli-region=<region> --project_id=<project_id>`                              | JSON list of policies                                      |
+| List custom rules         | `hcloud WAF ListCustomRules --cli-region=<region> --project_id=<project_id> --policy_id=<policy_id>` | JSON list of rules                                         |
+| List IP black/white rules | `hcloud WAF ListWhiteblackipRule ...`                                                                | JSON list                                                  |
+| List CC rules             | `hcloud WAF ListCcRules ...`                                                                         | JSON list                                                  |
+| List geo rules            | `hcloud WAF ListGeoipRule ...`                                                                       | JSON list                                                  |
+| Show composite host       | `hcloud WAF ShowCompositeHost --cli-region=<region> --project_id=<project_id> --host_id=<host_id>`   | JSON detail with CNAME                                     |
+| List AAD instances        | `hcloud AAD ListInstance --cli-region=<region>`                                                      | JSON list of instances                                     |
+| List AAD packages         | `hcloud AAD ListPackage --cli-region=<region>`                                                       | JSON list of packages                                      |
+| List protected IPs        | `hcloud AAD ListProtectedIp --cli-region=<region>`                                                   | JSON list of EIPs                                          |
+| List unbound IPs          | `hcloud AAD ListUnboundProtectedIp --cli-region=<region> --package_id=<package_id>`                  | JSON list of unbound EIPs                                  |
 
 **Negative check (mandatory):** the following commands MUST fail — they prove the skill does not
 fabricate AAD instance management:

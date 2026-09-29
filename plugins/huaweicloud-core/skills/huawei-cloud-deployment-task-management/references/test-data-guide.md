@@ -18,14 +18,14 @@ fill in before live runs.
 
 ## Placeholders and how to fill them
 
-| Placeholder | Meaning | How to obtain |
-| ----------- | ------- | ------------- |
-| `{region}` | Region, e.g. `cn-north-4` | `hcloud configure list` |
-| `{project_id}` | IAM (CodeArts) project ID | `hcloud IAM KeystoneShowProject` or the test account project page |
-| `{task_id}` | Deployment task ID | `hcloud CodeArtsDeploy ListDeployTasks --project_id={project_id}` |
-| `{app_name}` | Application (app) name | `hcloud CodeArtsDeploy ListAllApp --project_id={project_id}` |
-| `{template_id}` | Template ID for `CreateDeployTaskByTemplate` | No CLI list operation exists for deploy templates (`CodeArtsDeploy` has no `ShowTemplate`/`ListTemplates`) — copy the template ID from the **CodeArts Deploy console 模板库** when creating an app from a template, or from the template's page URL |
-| `{artifact_bucket}` / `{artifact_object_path}` | OBS object referenced by the task artifact | Task detail artifact config (`ShowDeployTaskDetail`) |
+| Placeholder                                    | Meaning                                      | How to obtain                                                                                                                                                                                                                                       |
+| ---------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `{region}`                                     | Region, e.g. `cn-north-4`                    | `hcloud configure list`                                                                                                                                                                                                                             |
+| `{project_id}`                                 | IAM (CodeArts) project ID                    | `hcloud IAM KeystoneShowProject` or the test account project page                                                                                                                                                                                   |
+| `{task_id}`                                    | Deployment task ID                           | `hcloud CodeArtsDeploy ListDeployTasks --project_id={project_id}`                                                                                                                                                                                   |
+| `{app_name}`                                   | Application (app) name                       | `hcloud CodeArtsDeploy ListAllApp --project_id={project_id}`                                                                                                                                                                                        |
+| `{template_id}`                                | Template ID for `CreateDeployTaskByTemplate` | No CLI list operation exists for deploy templates (`CodeArtsDeploy` has no `ShowTemplate`/`ListTemplates`) — copy the template ID from the **CodeArts Deploy console 模板库** when creating an app from a template, or from the template's page URL |
+| `{artifact_bucket}` / `{artifact_object_path}` | OBS object referenced by the task artifact   | Task detail artifact config (`ShowDeployTaskDetail`)                                                                                                                                                                                                |
 
 ## Backfilling before automated runs
 

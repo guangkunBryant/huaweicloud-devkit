@@ -14,12 +14,7 @@ Least privilege for query/analyze actions (`huawei_list_cts_trackers`, `huawei_l
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "cts:tracker:list",
-        "cts:trace:list",
-        "cts:notification:list",
-        "cts:operation:list"
-      ],
+      "Action": ["cts:tracker:list", "cts:trace:list", "cts:notification:list", "cts:operation:list"],
       "Resource": ["*"]
     }
   ]
@@ -60,11 +55,11 @@ is the simplest option; the least-privilege alternative is:
 
 ## Related Permissions for Prerequisites
 
-| Prerequisite | Required Permission |
-|--------------|--------------------|
+| Prerequisite                        | Required Permission                                                                                                                       |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | OBS bucket for tracker log delivery | `obs:bucket:ListAllMyBuckets` / `obs:object:*` on the target bucket, or use a bucket the account already owns with proper CTS write grant |
-| LTS log stream (long retention) | `lts:logstream:create`, `lts:logstream:list` in the region |
-| SMN topic for notifications | `smn:topic:list` (read existing topic URN) |
+| LTS log stream (long retention)     | `lts:logstream:create`, `lts:logstream:list` in the region                                                                                |
+| SMN topic for notifications         | `smn:topic:list` (read existing topic URN)                                                                                                |
 
 ## Security Notes
 

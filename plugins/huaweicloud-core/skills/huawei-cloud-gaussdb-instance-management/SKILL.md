@@ -18,6 +18,7 @@ tags: [huawei-cloud, gaussdb, database, distributed-database, devops]
 ---
 
 <!-- cli-install-version: 3.9.0 -->
+
 ## Step 0: Install skill-quality-cli (idempotent, skip if already installed)
 
 The CLI installs into `~/.local/bin/`, which is **not always in `$PATH`** (bare `skill-quality-cli` can fail with exit 127). Export it first, then run the installer (it also persists the PATH export into `~/.bashrc` / `~/.profile` for future shells):
@@ -26,6 +27,7 @@ The CLI installs into `~/.local/bin/`, which is **not always in `$PATH`** (bare 
 export PATH="$HOME/.local/bin:$PATH"
 bash scripts/ensure_cli.sh
 ```
+
 > The script detects whether `skill-quality-cli` is available (via PATH, falling back to the absolute path
 > `~/.local/bin/skill-quality-cli`); if not, it **deploys the skill's own bundled CLI source**
 > (`scripts/cli/cli_entry.py` + `scripts/cli/cli_reporting.py`) into `~/.local/bin/` as a local wrapper —
@@ -37,12 +39,12 @@ bash scripts/ensure_cli.sh
 
 This Skill wraps the KooCLI `hcloud` CLI's `GaussDB` (MySQL-compatible, TaurusDB API) and `gaussdbforopengauss` (openGauss distributed) services into 12 `huawei_*` actions:
 
-| Tier | Level | Actions | Execution |
-|------|-------|---------|-----------|
-| Query | R3 | `huawei_list_gaussdb_instances`, `huawei_get_gaussdb_instance`, `huawei_list_gaussdb_flavors`, `huawei_list_gaussdb_databases` | Read-only, auto-execute |
-| Analyze | R3 | `huawei_analyze_gaussdb_deployment`, `huawei_analyze_gaussdb_security` | Read-only, auto-execute |
-| Manage | R2 | `huawei_create_gaussdb_instance`, `huawei_create_gaussdb_backup`, `huawei_add_gaussdb_readonly_node`, `huawei_add_gaussdb_sharding_node` | Preview + confirm |
-| Manage | R1 | `huawei_update_gaussdb_database_permission`, `huawei_delete_gaussdb_instance` | Preview + confirm (high risk) |
+| Tier    | Level | Actions                                                                                                                                  | Execution                     |
+| ------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Query   | R3    | `huawei_list_gaussdb_instances`, `huawei_get_gaussdb_instance`, `huawei_list_gaussdb_flavors`, `huawei_list_gaussdb_databases`           | Read-only, auto-execute       |
+| Analyze | R3    | `huawei_analyze_gaussdb_deployment`, `huawei_analyze_gaussdb_security`                                                                   | Read-only, auto-execute       |
+| Manage  | R2    | `huawei_create_gaussdb_instance`, `huawei_create_gaussdb_backup`, `huawei_add_gaussdb_readonly_node`, `huawei_add_gaussdb_sharding_node` | Preview + confirm             |
+| Manage  | R1    | `huawei_update_gaussdb_database_permission`, `huawei_delete_gaussdb_instance`                                                            | Preview + confirm (high risk) |
 
 Applicable scenarios: daily GaussDB instance inspection, deployment-health checks,
 security baseline review, instance provisioning, add-node scaling, backup creation,
@@ -63,11 +65,11 @@ flowchart LR
 
 ## Critical Warnings
 
-| Trap | Why it matters |
-|------|----------------|
-| Shard key is permanent | Once set at creation, the shard key **cannot be changed**. Selecting it wrongly forces a full instance recreation. |
-| Minimum 3 nodes | Distributed GaussDB (openGauss) requires **at least 3 nodes** for production. Do not create or recommend smaller topologies. |
-| Engine version pinned | MySQL-compatible and openGauss are **separate products**; each engine's version is fixed per product family. Do not mix engine versions or assume cross-product compatibility. |
+| Trap                   | Why it matters                                                                                                                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Shard key is permanent | Once set at creation, the shard key **cannot be changed**. Selecting it wrongly forces a full instance recreation.                                                             |
+| Minimum 3 nodes        | Distributed GaussDB (openGauss) requires **at least 3 nodes** for production. Do not create or recommend smaller topologies.                                                   |
+| Engine version pinned  | MySQL-compatible and openGauss are **separate products**; each engine's version is fixed per product family. Do not mix engine versions or assume cross-product compatibility. |
 
 ## Prerequisites
 
@@ -88,14 +90,14 @@ flowchart LR
 
 ### Environment Variables
 
-| Environment Variable | Required | Description |
-|----------------------|----------|-------------|
-| `HUAWEICLOUD_SDK_AK` / `HUAWEI_ACCESS_KEY` | One of AK/SK pair | Access Key ID |
-| `HUAWEICLOUD_SDK_SK` / `HUAWEI_SECRET_KEY` | One of AK/SK pair | Secret Access Key |
-| `SKILL_QUALITY_DISABLE` | No | Set to `1` to disable reporting (local debugging) |
-| `SKILL_QUALITY_REPORT` | No | Set to `0` to disable the CLI's telemetry report (opt-out) — `run` still executes the wrapped command |
-| `SKILL_QUALITY_SESSION_ID` | No | Agent session id used for reporting (three-channel: `--session-id` > `SKILL_QUALITY_SESSION_ID` > auto-collected) |
-| `SKILL_TRACE_ID` | No | Set automatically when a command is wrapped with `skill-quality-cli run`; the wrapper skips its own report to avoid double counting |
+| Environment Variable                       | Required          | Description                                                                                                                         |
+| ------------------------------------------ | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `HUAWEICLOUD_SDK_AK` / `HUAWEI_ACCESS_KEY` | One of AK/SK pair | Access Key ID                                                                                                                       |
+| `HUAWEICLOUD_SDK_SK` / `HUAWEI_SECRET_KEY` | One of AK/SK pair | Secret Access Key                                                                                                                   |
+| `SKILL_QUALITY_DISABLE`                    | No                | Set to `1` to disable reporting (local debugging)                                                                                   |
+| `SKILL_QUALITY_REPORT`                     | No                | Set to `0` to disable the CLI's telemetry report (opt-out) — `run` still executes the wrapped command                               |
+| `SKILL_QUALITY_SESSION_ID`                 | No                | Agent session id used for reporting (three-channel: `--session-id` > `SKILL_QUALITY_SESSION_ID` > auto-collected)                   |
+| `SKILL_TRACE_ID`                           | No                | Set automatically when a command is wrapped with `skill-quality-cli run`; the wrapper skips its own report to avoid double counting |
 
 > The variable names above are **reference descriptions** (set them in your shell
 > profile or CI secrets), not commands — do not run them directly.
@@ -302,26 +304,26 @@ ID (look it up with `hcloud IAM KeystoneListProjects --cli-region={region}`):
 ```
 
 > **Verify without creating anything**: `hcloud <service> <Operation> --cli-region={region}
-> --cli-jsonInput=input.json --dryrun` prints the exact request; run it before the real call.
+--cli-jsonInput=input.json --dryrun` prints the exact request; run it before the real call.
 > `--master_availability_zone` (e.g. `cn-north-4a`) is required for
 > `availability_zone_mode=multi`; pick the AZ by running `hcloud GaussDB ShowGaussMySqlFlavors --cli-region={region} --availability_zone_mode=multi --database_name=gaussdb-mysql` first.
 
 ## Action Routing Table
 
-| huawei_* action | Level | Product family | Primary CLI command |
-|-----------------|-------|----------------|---------------------|
-| `huawei_list_gaussdb_instances` | R3 | both | `GaussDB ListGaussMySqlInstances` / `gaussdbforopengauss ListInstances` |
-| `huawei_get_gaussdb_instance` | R3 | both | `GaussDB ShowGaussMySqlInstanceInfo` / `gaussdbforopengauss ListInstances --id` |
-| `huawei_list_gaussdb_flavors` | R3 | both | `GaussDB ShowGaussMySqlFlavors` / `gaussdbforopengauss ListFlavors` |
-| `huawei_list_gaussdb_databases` | R3 | both | `GaussDB ListGaussMySqlDatabase` / `gaussdbforopengauss ListDatabases` |
-| `huawei_analyze_gaussdb_deployment` | R3 | both | composite of list/detail/node/engine-version commands |
-| `huawei_analyze_gaussdb_security` | R3 | both | composite of instance-info + EIP commands |
-| `huawei_create_gaussdb_instance` | R2 | both | `GaussDB CreateGaussMySqlInstance` / `gaussdbforopengauss CreateInstance` |
-| `huawei_create_gaussdb_backup` | R2 | both | `GaussDB CreateGaussMySqlBackup` / `gaussdbforopengauss CreateManualBackup` |
-| `huawei_add_gaussdb_readonly_node` | R2 | both | `GaussDB CreateGaussMySqlReadonlyNode` / `gaussdbforopengauss CreateReadonlyNodes` |
-| `huawei_add_gaussdb_sharding_node` | R2 | openGauss only | `gaussdbforopengauss RunInstanceAction --expand_cluster.shard.count` |
-| `huawei_update_gaussdb_database_permission` | R1 | both | `GaussDB AddDatabasePermission`/`DeleteDatabasePermission` / `gaussdbforopengauss AllowDbPrivileges` |
-| `huawei_delete_gaussdb_instance` | R1 | both | `GaussDB DeleteGaussMySqlInstance` / `gaussdbforopengauss DeleteInstance` |
+| huawei_* action                             | Level | Product family | Primary CLI command                                                                                  |
+| ------------------------------------------- | ----- | -------------- | ---------------------------------------------------------------------------------------------------- |
+| `huawei_list_gaussdb_instances`             | R3    | both           | `GaussDB ListGaussMySqlInstances` / `gaussdbforopengauss ListInstances`                              |
+| `huawei_get_gaussdb_instance`               | R3    | both           | `GaussDB ShowGaussMySqlInstanceInfo` / `gaussdbforopengauss ListInstances --id`                      |
+| `huawei_list_gaussdb_flavors`               | R3    | both           | `GaussDB ShowGaussMySqlFlavors` / `gaussdbforopengauss ListFlavors`                                  |
+| `huawei_list_gaussdb_databases`             | R3    | both           | `GaussDB ListGaussMySqlDatabase` / `gaussdbforopengauss ListDatabases`                               |
+| `huawei_analyze_gaussdb_deployment`         | R3    | both           | composite of list/detail/node/engine-version commands                                                |
+| `huawei_analyze_gaussdb_security`           | R3    | both           | composite of instance-info + EIP commands                                                            |
+| `huawei_create_gaussdb_instance`            | R2    | both           | `GaussDB CreateGaussMySqlInstance` / `gaussdbforopengauss CreateInstance`                            |
+| `huawei_create_gaussdb_backup`              | R2    | both           | `GaussDB CreateGaussMySqlBackup` / `gaussdbforopengauss CreateManualBackup`                          |
+| `huawei_add_gaussdb_readonly_node`          | R2    | both           | `GaussDB CreateGaussMySqlReadonlyNode` / `gaussdbforopengauss CreateReadonlyNodes`                   |
+| `huawei_add_gaussdb_sharding_node`          | R2    | openGauss only | `gaussdbforopengauss RunInstanceAction --expand_cluster.shard.count`                                 |
+| `huawei_update_gaussdb_database_permission` | R1    | both           | `GaussDB AddDatabasePermission`/`DeleteDatabasePermission` / `gaussdbforopengauss AllowDbPrivileges` |
+| `huawei_delete_gaussdb_instance`            | R1    | both           | `GaussDB DeleteGaussMySqlInstance` / `gaussdbforopengauss DeleteInstance`                            |
 
 > **Note:** MySQL-compatible GaussDB has **no sharding** — `huawei_add_gaussdb_sharding_node`
 > is only valid for the openGauss distributed product. If the user requests sharding on a
@@ -331,27 +333,27 @@ ID (look it up with `hcloud IAM KeystoneListProjects --cli-region={region}`):
 
 All parameter names below were extracted verbatim from `hcloud <Service> <Operation> --help` output (KooCLI 7.2.12). Re-verify with `--help` before first execution.
 
-| Action | Required params | Optional params |
-|--------|-----------------|-----------------|
-| list instances (mysql) | `--cli-region`, `--project_id` (auto if profile set) | `--name`, `--id`, `--limit`, `--offset`, `--datastore_type` |
-| list instances (opengauss) | `--cli-region`, `--project_id` | `--name`, `--id`, `--limit`, `--offset`, `--type`, `--vpc_id`, `--subnet_id`, `--charge_mode`, `--datastore_type`, `--tags` |
-| get instance (mysql) | `--instance_id` | `--X-Language` |
-| list flavors (mysql) | `--availability_zone_mode` (single/multi), `--database_name`, `--project_id` | `--spec_code`, `--version_name` |
-| list flavors (opengauss) | `--project_id` | `--version`, `--spec_code`, `--ha_mode`, `--limit`, `--offset` |
-| list databases (mysql) | `--instance_id`, `--project_id` | `--name`, `--charset`, `--limit`, `--offset` |
-| list databases (opengauss) | `--instance_id`, `--project_id` | (none) |
-| list instance nodes (mysql) | `--instance_id`, `--X-Language` | (none) |
-| create instance (mysql) | `--cli-region`, `--cli-jsonInput=input.json` — body (via JSON): `--name`, `--availability_zone_mode`, `--datastore.type`, `--datastore.version`, `--flavor_ref`, `--mode`, `--vpc_id`, `--subnet_id`, `--slave_count`, `--password`, `--region`, `--charge_info.charge_mode`, `--backup_strategy.start_time` (plus `--master_availability_zone` when `availability_zone_mode=multi`) | `--security_group_id`, `--availability_zones`, `--configuration_id`, `--is_auto_pay` (pass optional body params inside the JSON too) |
-| create instance (opengauss) | `--cli-region`, `--cli-jsonInput=input_opengauss.json` — body (via JSON): `--name`, `--availability_zone`, `--datastore.type`, `--datastore.version`, `--flavor_ref`, `--ha.mode`, `--ha.replication_mode`, `--ha.consistency`, `--vpc_id`, `--subnet_id`, `--security_group_id`, `--volume.type`, `--volume.size`, `--password`, `--region` | `--backup_strategy.*`, `--charge_info.*`, `--port`, `--time_zone`, `--tags` (pass optional body params inside the JSON too) |
-| create backup (mysql) | `--instance_id`, `--name` | `--description` |
-| create backup (opengauss) | `--instance_id`, `--name` | (none) |
-| add readonly node (mysql) | `--instance_id`, `--priorities.[N]` (1-16) | `--availability_zones.[N]`, `--charge_mode`, `--is_auto_pay` |
-| add readonly node (opengauss) | `--instance_id`, `--node_distribution.[N].availability_zone`, `--node_distribution.[N].configuration_id`, `--node_distribution.[N].flavor_ref`, `--node_distribution.[N].num` | (none) |
-| add sharding node (opengauss) | `--instance_id`, `--expand_cluster.shard.count` | `--expand_cluster.coordinators.[N].az_code`, `--is_auto_pay` |
-| db permission grant (mysql) | `--instance_id`, `--users.[N].name`, `--users.[N].host`, `--users.[N].databases.[N].name`, `--users.[N].databases.[N].readonly` | (none) |
-| db permission revoke (mysql) | `--instance_id`, `--users.[N].name`, `--users.[N].host`, `--users.[N].databases.[N]` | (none) |
-| db permission (opengauss) | `--instance_id`, `--db_name`, `--users.[N].name`, `--users.[N].readonly`, `--users.[N].schema_name` | (none) |
-| delete instance (both) | `--instance_id` | (none) |
+| Action                        | Required params                                                                                                                                                                                                                                                                                                                                                                      | Optional params                                                                                                                      |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| list instances (mysql)        | `--cli-region`, `--project_id` (auto if profile set)                                                                                                                                                                                                                                                                                                                                 | `--name`, `--id`, `--limit`, `--offset`, `--datastore_type`                                                                          |
+| list instances (opengauss)    | `--cli-region`, `--project_id`                                                                                                                                                                                                                                                                                                                                                       | `--name`, `--id`, `--limit`, `--offset`, `--type`, `--vpc_id`, `--subnet_id`, `--charge_mode`, `--datastore_type`, `--tags`          |
+| get instance (mysql)          | `--instance_id`                                                                                                                                                                                                                                                                                                                                                                      | `--X-Language`                                                                                                                       |
+| list flavors (mysql)          | `--availability_zone_mode` (single/multi), `--database_name`, `--project_id`                                                                                                                                                                                                                                                                                                         | `--spec_code`, `--version_name`                                                                                                      |
+| list flavors (opengauss)      | `--project_id`                                                                                                                                                                                                                                                                                                                                                                       | `--version`, `--spec_code`, `--ha_mode`, `--limit`, `--offset`                                                                       |
+| list databases (mysql)        | `--instance_id`, `--project_id`                                                                                                                                                                                                                                                                                                                                                      | `--name`, `--charset`, `--limit`, `--offset`                                                                                         |
+| list databases (opengauss)    | `--instance_id`, `--project_id`                                                                                                                                                                                                                                                                                                                                                      | (none)                                                                                                                               |
+| list instance nodes (mysql)   | `--instance_id`, `--X-Language`                                                                                                                                                                                                                                                                                                                                                      | (none)                                                                                                                               |
+| create instance (mysql)       | `--cli-region`, `--cli-jsonInput=input.json` — body (via JSON): `--name`, `--availability_zone_mode`, `--datastore.type`, `--datastore.version`, `--flavor_ref`, `--mode`, `--vpc_id`, `--subnet_id`, `--slave_count`, `--password`, `--region`, `--charge_info.charge_mode`, `--backup_strategy.start_time` (plus `--master_availability_zone` when `availability_zone_mode=multi`) | `--security_group_id`, `--availability_zones`, `--configuration_id`, `--is_auto_pay` (pass optional body params inside the JSON too) |
+| create instance (opengauss)   | `--cli-region`, `--cli-jsonInput=input_opengauss.json` — body (via JSON): `--name`, `--availability_zone`, `--datastore.type`, `--datastore.version`, `--flavor_ref`, `--ha.mode`, `--ha.replication_mode`, `--ha.consistency`, `--vpc_id`, `--subnet_id`, `--security_group_id`, `--volume.type`, `--volume.size`, `--password`, `--region`                                         | `--backup_strategy.*`, `--charge_info.*`, `--port`, `--time_zone`, `--tags` (pass optional body params inside the JSON too)          |
+| create backup (mysql)         | `--instance_id`, `--name`                                                                                                                                                                                                                                                                                                                                                            | `--description`                                                                                                                      |
+| create backup (opengauss)     | `--instance_id`, `--name`                                                                                                                                                                                                                                                                                                                                                            | (none)                                                                                                                               |
+| add readonly node (mysql)     | `--instance_id`, `--priorities.[N]` (1-16)                                                                                                                                                                                                                                                                                                                                           | `--availability_zones.[N]`, `--charge_mode`, `--is_auto_pay`                                                                         |
+| add readonly node (opengauss) | `--instance_id`, `--node_distribution.[N].availability_zone`, `--node_distribution.[N].configuration_id`, `--node_distribution.[N].flavor_ref`, `--node_distribution.[N].num`                                                                                                                                                                                                        | (none)                                                                                                                               |
+| add sharding node (opengauss) | `--instance_id`, `--expand_cluster.shard.count`                                                                                                                                                                                                                                                                                                                                      | `--expand_cluster.coordinators.[N].az_code`, `--is_auto_pay`                                                                         |
+| db permission grant (mysql)   | `--instance_id`, `--users.[N].name`, `--users.[N].host`, `--users.[N].databases.[N].name`, `--users.[N].databases.[N].readonly`                                                                                                                                                                                                                                                      | (none)                                                                                                                               |
+| db permission revoke (mysql)  | `--instance_id`, `--users.[N].name`, `--users.[N].host`, `--users.[N].databases.[N]`                                                                                                                                                                                                                                                                                                 | (none)                                                                                                                               |
+| db permission (opengauss)     | `--instance_id`, `--db_name`, `--users.[N].name`, `--users.[N].readonly`, `--users.[N].schema_name`                                                                                                                                                                                                                                                                                  | (none)                                                                                                                               |
+| delete instance (both)        | `--instance_id`                                                                                                                                                                                                                                                                                                                                                                      | (none)                                                                                                                               |
 
 **Indexed-parameter syntax**: KooCLI uses `.N` notation, e.g. `--users.1.databases.1.name=db1 --users.1.databases.2.name=db2`.
 
@@ -372,13 +374,13 @@ steps from the host session.
 
 ### Error Code Convention
 
-| Prefix | Category | Examples |
-|--------|----------|---------|
-| U | User input | U01 missing param, U03 no data found |
-| C | Configuration | C01 missing AK/SK/env, C02 missing KooCLI profile |
-| N | Network | N01 timeout, N02 connection refused |
-| B | Code bug | B01 null pointer, B04 version mismatch |
-| P | Platform | P01 scheduler error, P02 resource insufficient |
+| Prefix | Category      | Examples                                          |
+| ------ | ------------- | ------------------------------------------------- |
+| U      | User input    | U01 missing param, U03 no data found              |
+| C      | Configuration | C01 missing AK/SK/env, C02 missing KooCLI profile |
+| N      | Network       | N01 timeout, N02 connection refused               |
+| B      | Code bug      | B01 null pointer, B04 version mismatch            |
+| P      | Platform      | P01 scheduler error, P02 resource insufficient    |
 
 Reporting is non-blocking and fails silently — it never interrupts the Skill main flow. Disable via `SKILL_QUALITY_DISABLE=1` for local testing.
 
@@ -393,15 +395,15 @@ Replace the `<service>`, `<Operation>`, `<region>` and `{placeholder}` tokens wi
 real values before running; never submit a command that still contains `<>` or
 `{}` placeholders or empty `--key=` parameters (KooCLI rejects them).
 
-| Feature | Description | Example |
-|---------|-------------|---------|
-| Service name | Use exact case from `hcloud <service> --help` — `GaussDB` (MySQL-compatible) and `gaussdbforopengauss` (openGauss) | `GaussDB ListGaussMySqlInstances` |
-| Operation name | PascalCase | `ShowGaussMySqlInstanceInfo`, `RunInstanceAction` |
-| Region parameter | `--cli-region=<value>` | `--cli-region=cn-north-4` |
-| Same-name clash | If an API parameter has the same name as a KooCLI system parameter (`--mode`, `--password`, `--region`, ...), KooCLI prompts interactively and fails with `EOF` non-interactively — pass the body via `--cli-jsonInput` instead | `--cli-jsonInput=input.json` |
-| Simple parameter | `--key=value` | `--instance_id=xxx` |
-| Indexed parameter | `--key.N=valueN` | `--users.1.databases.1.name=db1` |
-| `--project_id` | optional — falls back to profile projectId if configured | `--project_id=xxx` |
+| Feature           | Description                                                                                                                                                                                                                     | Example                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Service name      | Use exact case from `hcloud <service> --help` — `GaussDB` (MySQL-compatible) and `gaussdbforopengauss` (openGauss)                                                                                                              | `GaussDB ListGaussMySqlInstances`                 |
+| Operation name    | PascalCase                                                                                                                                                                                                                      | `ShowGaussMySqlInstanceInfo`, `RunInstanceAction` |
+| Region parameter  | `--cli-region=<value>`                                                                                                                                                                                                          | `--cli-region=cn-north-4`                         |
+| Same-name clash   | If an API parameter has the same name as a KooCLI system parameter (`--mode`, `--password`, `--region`, ...), KooCLI prompts interactively and fails with `EOF` non-interactively — pass the body via `--cli-jsonInput` instead | `--cli-jsonInput=input.json`                      |
+| Simple parameter  | `--key=value`                                                                                                                                                                                                                   | `--instance_id=xxx`                               |
+| Indexed parameter | `--key.N=valueN`                                                                                                                                                                                                                | `--users.1.databases.1.name=db1`                  |
+| `--project_id`    | optional — falls back to profile projectId if configured                                                                                                                                                                        | `--project_id=xxx`                                |
 
 ## Reference Documents
 
@@ -413,16 +415,17 @@ real values before running; never submit a command that still contains `<>` or
 
 ## Troubleshooting
 
-| Error | Fix |
-|-------|-----|
-| `Service not found` for `gaussdbforopengauss` | Product not available in the region; use MySQL-compatible `GaussDB` service or update KooCLI first (`hcloud` `update -y`) |
-| `Required parameter ... is missing` | Run `hcloud <service> <Operation> --cli-region={region} --help` to get exact parameter names — never guess |
+| Error                                                                        | Fix                                                                                                                                                                                      |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Service not found` for `gaussdbforopengauss`                                | Product not available in the region; use MySQL-compatible `GaussDB` service or update KooCLI first (`hcloud` `update -y`)                                                                |
+| `Required parameter ... is missing`                                          | Run `hcloud <service> <Operation> --cli-region={region} --help` to get exact parameter names — never guess                                                                               |
 | `Confirm whether this parameter is a KooCLI system parameter (a)...` / `EOF` | The parameter name also belongs to KooCLI itself (`--mode`, `--password`, `--region`, ...) — pass it inside the body file via `--cli-jsonInput` (see the create-instance examples above) |
-| Instance creation fails | Check VPC/subnet availability, flavor capacity, and security group |
-| Connection refused | Security group missing the database port (see security analysis action) |
-| Permission denied (403) | IAM policy lacks GaussDB rights — see iam-policies.md |
+| Instance creation fails                                                      | Check VPC/subnet availability, flavor capacity, and security group                                                                                                                       |
+| Connection refused                                                           | Security group missing the database port (see security analysis action)                                                                                                                  |
+| Permission denied (403)                                                      | IAM policy lacks GaussDB rights — see iam-policies.md                                                                                                                                    |
 
 <!-- cli-inject-version: 3.9.0 -->
+
 ## Quality Reporting (Unified CLI)
 
 > CLI installation: see "Step 0: Install skill-quality-cli" at the top of this document (idempotent, skips instantly if installed).
@@ -432,13 +435,17 @@ Report execution quality on every run of this skill, using either mode below. Th
 > **⚠️ PATH note: the CLI is installed to `~/.local/bin/`, which is NOT always in `$PATH` in some environments. If `skill-quality-cli: command not found` (exit 127) appears, run `export PATH="$HOME/.local/bin:$PATH"` first (ensure_cli.sh does this automatically), then retry; or call the absolute path `~/.local/bin/skill-quality-cli` directly.**
 
 ### Mode 1 (recommended, automatic) — wrap the whole execution
+
 For script/command-style skills, wrap the entire command with `run`:
+
 ```bash
 skill-quality-cli run --skill-name <skill-name> -- <your command>
 ```
 
 ### Mode 2 (multi-step / instruction-style skills)
+
 Report once per step (callable multiple times):
+
 ```bash
 skill-quality-cli report --skill-name <skill-name> --status <success|sys_fail|biz_fail|cancel>
 ```
@@ -446,6 +453,7 @@ skill-quality-cli report --skill-name <skill-name> --status <success|sys_fail|bi
 > **⚠️ Mandatory rule: any hcloud command executed by this skill MUST be wrapped with `skill-quality-cli run` — bare hcloud calls are strictly forbidden.**
 
 ### CLI installation & auto-update
+
 - **Local install**: run `bash scripts/ensure_cli.sh` before execution (idempotent, skips if installed). It deploys the **bundled** CLI source from this skill (`scripts/cli/`) — no external download (SC2).
 - **Installed CLI**: the bundled version is fixed (v1.1.8) and does NOT auto-download/upgrade from the network. `--no-auto-upgrade` is accepted for compatibility but is a no-op.
 - **Manual cold-start (fallback)**: if `ensure_cli.sh` is unavailable, deploy the bundled source directly:
@@ -459,6 +467,8 @@ skill-quality-cli report --skill-name <skill-name> --status <success|sys_fail|bi
 - Current version is recorded in `~/.skill-quality/version.json`; `bootstrap`/`install` deploy the pinned bundled version only.
 
 ### Tool parameter validation (TM1)
+
 Every command wrapped via `skill-quality-cli run` is validated before execution:
+
 - **Whitelist**: only the `hcloud` CLI may be wrapped — any other executable is rejected outright.
 - **Type/character check**: every argument must be a plain string composed only of safe characters (`[A-Za-z0-9_\-.,:=/{}@]`); anything else (shell metacharacters, `$()`, backticks, spaces-as-arg, etc.) is rejected with an error before the subprocess starts, so no illegal input can reach the tool.

@@ -12,11 +12,11 @@ This document defines how to verify each action class of the skill.
 
 ## Query Actions (R3) — Verification
 
-| Action | Verification Command | Expected Result |
-|--------|---------------------|-----------------|
-| `huawei_list_clouddeploy_apps` | `hcloud CodeArtsDeploy ListAllApp --cli-region={region} --project_id={project_id} --page=1 --size=10` | JSON with application list (may be empty for a new project) |
-| `huawei_list_clouddeploy_tasks` | `hcloud CodeArtsDeploy ListDeployTasks --cli-region={region} --project_id={project_id} --page=1 --size=10` | JSON with task list (may be empty) |
-| `huawei_get_clouddeploy_task` | `hcloud CodeArtsDeploy ShowDeployTaskDetail --cli-region={region} --task_id={task_id}` | JSON with the task detail or a clear not-found error |
+| Action                          | Verification Command                                                                                       | Expected Result                                             |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `huawei_list_clouddeploy_apps`  | `hcloud CodeArtsDeploy ListAllApp --cli-region={region} --project_id={project_id} --page=1 --size=10`      | JSON with application list (may be empty for a new project) |
+| `huawei_list_clouddeploy_tasks` | `hcloud CodeArtsDeploy ListDeployTasks --cli-region={region} --project_id={project_id} --page=1 --size=10` | JSON with task list (may be empty)                          |
+| `huawei_get_clouddeploy_task`   | `hcloud CodeArtsDeploy ShowDeployTaskDetail --cli-region={region} --task_id={task_id}`                     | JSON with the task detail or a clear not-found error        |
 
 **Error semantics:** empty lists are valid results. A non-zero exit or error JSON indicates auth,
 scope, or parameter problems. For a non-CodeArts project, `Deploy.00016902 项目不存在` is expected.
@@ -37,12 +37,12 @@ scope, or parameter problems. For a non-CodeArts project, `Deploy.00016902 项�
 
 Always preview the exact command and wait for explicit user confirmation before execution.
 
-| Action | Verification After Execution |
-|--------|------------------------------|
-| `huawei_create_clouddeploy_app` | `ListAllApp` shows the new application (pre-check with `CheckIsDuplicateAppName` before creating) |
-| `huawei_create_clouddeploy_task` | `ListDeployTasks` shows the new task referencing the application |
-| `huawei_start_clouddeploy_task` | `ListDeployTaskHistoryByDate` shows a new execution record for the task |
-| `huawei_delete_clouddeploy_task` | `ListDeployTasks` no longer contains the deleted task |
+| Action                           | Verification After Execution                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `huawei_create_clouddeploy_app`  | `ListAllApp` shows the new application (pre-check with `CheckIsDuplicateAppName` before creating) |
+| `huawei_create_clouddeploy_task` | `ListDeployTasks` shows the new task referencing the application                                  |
+| `huawei_start_clouddeploy_task`  | `ListDeployTaskHistoryByDate` shows a new execution record for the task                           |
+| `huawei_delete_clouddeploy_task` | `ListDeployTasks` no longer contains the deleted task                                             |
 
 **Resource lifecycle note:** deleting a task does not delete the application or deployed resources;
 applications are listed/created separately via `huawei_list_clouddeploy_apps` /

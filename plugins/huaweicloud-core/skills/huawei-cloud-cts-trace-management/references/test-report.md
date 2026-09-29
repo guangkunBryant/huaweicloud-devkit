@@ -7,28 +7,28 @@
 
 ## 测试结果汇总
 
-| 指标 | 值 |
-|------|-----|
-| 总测试数 | 10 |
-| ✅ 通过 | 10 |
-| ❌ 失败 | 0 |
-| ⏭️ 跳过 | 0 |
-| 测试者 | Huawei Cloud Skill Creator v2 |
+| 指标     | 值                            |
+| -------- | ----------------------------- |
+| 总测试数 | 10                            |
+| ✅ 通过  | 10                            |
+| ❌ 失败  | 0                             |
+| ⏭️ 跳过  | 0                             |
+| 测试者   | Huawei Cloud Skill Creator v2 |
 
 ## 测试详情
 
-| 操作 | 测试类型 | 结果 | 备注 |
-|------|----------|------|------|
-| `hcloud CTS ListOperations --cli-region=cn-north-4` | CLI query | ✅ 通过 | CLI verified |
-| `hcloud CTS ListTrackers --cli-region=cn-north-4` | CLI query | ✅ 通过 | CLI verified |
-| `hcloud CTS ListTraces --cli-region=cn-north-4 --trace_type=system --limit=5` | CLI query | ✅ 通过 | CLI verified |
-| `hcloud CTS ListNotifications --cli-region=cn-north-4 --notification_type=smn` | CLI query | ✅ 通过 | CLI verified |
-| `hcloud CTS ListTraceResources --cli-region=cn-north-4 --domain_id={domain_id}` | CLI query | ✅ 通过 | CLI verified（`{domain_id}` 从认证 profile / IAM 动态获取） |
-| `hcloud CTS CreateTracker --cli-region=cn-north-4 --help` | CLI syntax | ✅ 通过 | CLI verified |
-| `hcloud CTS CreateNotification --cli-region=cn-north-4 --help` | CLI syntax | ✅ 通过 | CLI verified |
-| `hcloud CTS DeleteTracker --cli-region=cn-north-4 --help` | CLI syntax | ✅ 通过 | CLI verified |
-| `hcloud CTS ListTraceResources --cli-region=cn-north-4 --project_id={project_id}` | CLI negative | ✅ 通过 | CLI verified |
-| `hcloud CTS ListTraces --cli-region=cn-north-4 --limit=1 --trace_type=invalid_value` | CLI negative | ✅ 通过 | CLI verified |
+| 操作                                                                                 | 测试类型     | 结果    | 备注                                                        |
+| ------------------------------------------------------------------------------------ | ------------ | ------- | ----------------------------------------------------------- |
+| `hcloud CTS ListOperations --cli-region=cn-north-4`                                  | CLI query    | ✅ 通过 | CLI verified                                                |
+| `hcloud CTS ListTrackers --cli-region=cn-north-4`                                    | CLI query    | ✅ 通过 | CLI verified                                                |
+| `hcloud CTS ListTraces --cli-region=cn-north-4 --trace_type=system --limit=5`        | CLI query    | ✅ 通过 | CLI verified                                                |
+| `hcloud CTS ListNotifications --cli-region=cn-north-4 --notification_type=smn`       | CLI query    | ✅ 通过 | CLI verified                                                |
+| `hcloud CTS ListTraceResources --cli-region=cn-north-4 --domain_id={domain_id}`      | CLI query    | ✅ 通过 | CLI verified（`{domain_id}` 从认证 profile / IAM 动态获取） |
+| `hcloud CTS CreateTracker --cli-region=cn-north-4 --help`                            | CLI syntax   | ✅ 通过 | CLI verified                                                |
+| `hcloud CTS CreateNotification --cli-region=cn-north-4 --help`                       | CLI syntax   | ✅ 通过 | CLI verified                                                |
+| `hcloud CTS DeleteTracker --cli-region=cn-north-4 --help`                            | CLI syntax   | ✅ 通过 | CLI verified                                                |
+| `hcloud CTS ListTraceResources --cli-region=cn-north-4 --project_id={project_id}`    | CLI negative | ✅ 通过 | CLI verified                                                |
+| `hcloud CTS ListTraces --cli-region=cn-north-4 --limit=1 --trace_type=invalid_value` | CLI negative | ✅ 通过 | CLI verified                                                |
 
 ## 结论
 

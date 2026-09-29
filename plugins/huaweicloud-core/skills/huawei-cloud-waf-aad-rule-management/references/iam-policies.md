@@ -65,10 +65,7 @@ granted here.
     },
     {
       "Effect": "Allow",
-      "Action": [
-        "waf:rule:create",
-        "waf:rule:delete"
-      ],
+      "Action": ["waf:rule:create", "waf:rule:delete"],
       "Resource": "*"
     }
   ]
@@ -82,5 +79,5 @@ granted here.
   `eps:enterpriseProjects:get` and pass `--enterprise_project_id=<eps-id>` in CLI calls; the
   default is `0` (default enterprise project).
 - The IAM policy action names above follow Huawei Cloud WAF/AAD API permissions
-  (`waf:*`, `antiddos:*`). Verify exact action strings in the console IAM *Permissions* page for
+  (`waf:*`, `antiddos:*`). Verify exact action strings in the console IAM _Permissions_ page for
   your region before production rollout.

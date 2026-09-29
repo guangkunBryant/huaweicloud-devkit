@@ -17,6 +17,7 @@ tags: [huawei-cloud, apig, api-gateway, throttling, api-management]
 # Huawei Cloud APIG API Gateway Management
 
 <!-- cli-install-version: 3.9.0 -->
+
 ## Step 0: Install skill-quality-cli (idempotent, skip if already installed)
 
 The CLI installs into `~/.local/bin/`, which is **not always in `$PATH`** (bare `skill-quality-cli` may
@@ -40,12 +41,12 @@ diagnosis of public access configuration and the publish chain.
 
 **Capabilities (17 `huawei_*` actions):**
 
-| Category | Level | Actions |
-| ---------- | ------- | --------- |
-| Query | R3 (read-only, auto) | `huawei_list_apig_instances`, `huawei_get_apig_instance`, `huawei_list_apig_api_groups`, `huawei_list_apig_apis`, `huawei_list_apig_throttling_policies` |
-| Analyze | R3 (read-only, auto) | `huawei_analyze_apig_public_access`, `huawei_analyze_apig_publish_chain` |
-| Manage | R2 (preview + confirm) | `huawei_create_apig_instance`, `huawei_add_apig_ingress_eip`, `huawei_create_apig_api_group`, `huawei_create_apig_api`, `huawei_update_apig_api`, `huawei_publish_apig_api`, `huawei_create_apig_throttling_policy` |
-| Manage (delete) | R1 (preview + explicit confirm) | `huawei_delete_apig_instance`, `huawei_delete_apig_api`, `huawei_delete_apig_api_group` |
+| Category        | Level                           | Actions                                                                                                                                                                                                             |
+| --------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Query           | R3 (read-only, auto)            | `huawei_list_apig_instances`, `huawei_get_apig_instance`, `huawei_list_apig_api_groups`, `huawei_list_apig_apis`, `huawei_list_apig_throttling_policies`                                                            |
+| Analyze         | R3 (read-only, auto)            | `huawei_analyze_apig_public_access`, `huawei_analyze_apig_publish_chain`                                                                                                                                            |
+| Manage          | R2 (preview + confirm)          | `huawei_create_apig_instance`, `huawei_add_apig_ingress_eip`, `huawei_create_apig_api_group`, `huawei_create_apig_api`, `huawei_update_apig_api`, `huawei_publish_apig_api`, `huawei_create_apig_throttling_policy` |
+| Manage (delete) | R1 (preview + explicit confirm) | `huawei_delete_apig_instance`, `huawei_delete_apig_api`, `huawei_delete_apig_api_group`                                                                                                                             |
 
 **NOT covered** by this skill (use the Huawei Cloud APIG console for these):
 signature keys / app credentials, API plugins, ACL policies, domain binding,
@@ -57,17 +58,17 @@ All commands use the operation names exactly as enumerated by the KooCLI APIG he
 
 ## Critical Warnings
 
-| # | Trap | Why |
-| --- | ------ | ----- |
-| 1 | API group region-locked | An API group cannot move across regions. Create it in the target region from the start. |
-| 2 | Throttling default is per-API | The default throttling policy applies per API. Use app-level quotas (`--app_call_limits`) for per-user limits. |
-| 3 | CORS must be explicit | OPTIONS preflight fails until CORS is configured on the API (`--cors=true`). |
-| 4 | `BASIC` spec has no public IP | Use `PROFESSIONAL` + `--loadbalancer_provider=elb` for public access (`lvs` is internal-only). |
-| 5 | Instance creation takes 5-15 min | Long-running async operation. The final state is **Running** (NOT "SUCCESS"). Poll with `ListInstancesV2` and wait for `status == "Running"`. |
-| 6 | `sl_domain` is from the API **Group** | NOT from the instance. Get it from `CreateApiGroupV2` / `ListApiGroupsV2` response. It is an internal-only domain and may NXDOMAIN from the public internet — for public access use the instance `eip_address`. |
-| 7 | API / throttling policy names must NOT have hyphens | `[a-zA-Z0-9_]+` only. Hyphens cause regex validation failure (verified for `CreateRequestThrottlingPolicyV2` too, APIG.2011). |
-| 8 | VPC params need prefix | `--vpc.name=<n>` / `--subnet.vpc_id=<id>` / `--security_group.name=<n>` with KooCLI 7.x. |
-| 9 | `AddIngressEipV2` works only with `elb` provider | `AddEipV2` (without "Ingress") requires the `lvs` provider. Ingress bandwidth minimum is 5 Mbit/s. |
+| #   | Trap                                                | Why                                                                                                                                                                                                             |
+| --- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | API group region-locked                             | An API group cannot move across regions. Create it in the target region from the start.                                                                                                                         |
+| 2   | Throttling default is per-API                       | The default throttling policy applies per API. Use app-level quotas (`--app_call_limits`) for per-user limits.                                                                                                  |
+| 3   | CORS must be explicit                               | OPTIONS preflight fails until CORS is configured on the API (`--cors=true`).                                                                                                                                    |
+| 4   | `BASIC` spec has no public IP                       | Use `PROFESSIONAL` + `--loadbalancer_provider=elb` for public access (`lvs` is internal-only).                                                                                                                  |
+| 5   | Instance creation takes 5-15 min                    | Long-running async operation. The final state is **Running** (NOT "SUCCESS"). Poll with `ListInstancesV2` and wait for `status == "Running"`.                                                                   |
+| 6   | `sl_domain` is from the API **Group**               | NOT from the instance. Get it from `CreateApiGroupV2` / `ListApiGroupsV2` response. It is an internal-only domain and may NXDOMAIN from the public internet — for public access use the instance `eip_address`. |
+| 7   | API / throttling policy names must NOT have hyphens | `[a-zA-Z0-9_]+` only. Hyphens cause regex validation failure (verified for `CreateRequestThrottlingPolicyV2` too, APIG.2011).                                                                                   |
+| 8   | VPC params need prefix                              | `--vpc.name=<n>` / `--subnet.vpc_id=<id>` / `--security_group.name=<n>` with KooCLI 7.x.                                                                                                                        |
+| 9   | `AddIngressEipV2` works only with `elb` provider    | `AddEipV2` (without "Ingress") requires the `lvs` provider. Ingress bandwidth minimum is 5 Mbit/s.                                                                                                              |
 
 ## Prerequisites
 
@@ -108,12 +109,12 @@ lowercase `apig`; both forms are accepted).
 skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hcloud APIG ListInstancesV2 --cli-region={region} --limit=20 --offset=0
 ```
 
-| Parameter | Required | Description |
-| ----------- | ---------- | ------------- |
-| `--cli-region` | Yes (auto) | Region, agent fills automatically |
-| `--limit` | No | Items per page, default 20 (max 500) |
-| `--offset` | No | Query offset (default 0) |
-| `--status` | No | Filter by gateway status, e.g. `Running`, `Creating`, `Deleting` |
+| Parameter      | Required   | Description                                                      |
+| -------------- | ---------- | ---------------------------------------------------------------- |
+| `--cli-region` | Yes (auto) | Region, agent fills automatically                                |
+| `--limit`      | No         | Items per page, default 20 (max 500)                             |
+| `--offset`     | No         | Query offset (default 0)                                         |
+| `--status`     | No         | Filter by gateway status, e.g. `Running`, `Creating`, `Deleting` |
 
 `huawei_get_apig_instance` — query a single instance detail:
 
@@ -127,9 +128,9 @@ skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hclo
 > exist. Report "实例不存在，请确认 instance_id" instead of treating it as a
 > successful query.
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--instance_id` | No | Gateway ID (pass it to narrow to one instance) |
+| Parameter       | Required | Description                                    |
+| --------------- | -------- | ---------------------------------------------- |
+| `--instance_id` | No       | Gateway ID (pass it to narrow to one instance) |
 
 ### Query — API Groups
 
@@ -139,11 +140,11 @@ skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hclo
 skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hcloud APIG ListApiGroupsV2 --cli-region={region} --instance_id={instance_id} --limit=20
 ```
 
-| Parameter | Required | Description |
-| ----------- | ---------- | ------------- |
-| `--instance_id` | Yes | Gateway ID |
-| `--limit` / `--offset` | No | Pagination |
-| `--name` / `--id` | No | Filter by group name / ID |
+| Parameter              | Required | Description               |
+| ---------------------- | -------- | ------------------------- |
+| `--instance_id`        | Yes      | Gateway ID                |
+| `--limit` / `--offset` | No       | Pagination                |
+| `--name` / `--id`      | No       | Filter by group name / ID |
 
 ### Query — APIs
 
@@ -154,13 +155,13 @@ skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hclo
 skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hcloud APIG ListApisV2 --cli-region={region} --instance_id={instance_id} --limit=20
 ```
 
-| Parameter | Required | Description |
-| ----------- | ---------- | ------------- |
-| `--instance_id` | Yes | Gateway ID |
-| `--group_id` | No | Filter by API group ID |
-| `--name` / `--id` | No | Filter by API name / ID |
-| `--req_method` / `--req_uri` | No | Filter by method / URI |
-| `--auth_type` | No | Filter by auth type (IAM/APP/NONE) |
+| Parameter                    | Required | Description                        |
+| ---------------------------- | -------- | ---------------------------------- |
+| `--instance_id`              | Yes      | Gateway ID                         |
+| `--group_id`                 | No       | Filter by API group ID             |
+| `--name` / `--id`            | No       | Filter by API name / ID            |
+| `--req_method` / `--req_uri` | No       | Filter by method / URI             |
+| `--auth_type`                | No       | Filter by auth type (IAM/APP/NONE) |
 
 ### Query — Throttling Policies
 
@@ -171,11 +172,11 @@ skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hclo
 skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hcloud APIG ListRequestThrottlingPolicyV2 --cli-region={region} --instance_id={instance_id} --limit=20
 ```
 
-| Parameter | Required | Description |
-| ----------- | ---------- | ------------- |
-| `--instance_id` | Yes | Gateway ID |
-| `--name` / `--id` | No | Filter by policy name / ID |
-| `--limit` / `--offset` | No | Pagination |
+| Parameter              | Required | Description                |
+| ---------------------- | -------- | -------------------------- |
+| `--instance_id`        | Yes      | Gateway ID                 |
+| `--name` / `--id`      | No       | Filter by policy name / ID |
+| `--limit` / `--offset` | No       | Pagination                 |
 
 ### Analyze — Public Access
 
@@ -187,9 +188,9 @@ skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hclo
 skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hcloud APIG ListApiGroupsV2 --cli-region={region} --instance_id={instance_id} --cli-output=json
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--instance_id` | Yes | Gateway ID |
+| Parameter       | Required | Description |
+| --------------- | -------- | ----------- |
+| `--instance_id` | Yes      | Gateway ID  |
 
 Analysis rules: if `instances[].eip_address` is a valid IP the instance has a
 public inbound entry — use it for public access. If it is null, the instance is
@@ -209,10 +210,10 @@ skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hclo
 # Optional: add --group_id={group_id} to restrict the walk to a single API group
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--instance_id` | Yes | Gateway ID |
-| `--group_id` | No | Restrict to one API group |
+| Parameter       | Required | Description               |
+| --------------- | -------- | ------------------------- |
+| `--instance_id` | Yes      | Gateway ID                |
+| `--group_id`    | No       | Restrict to one API group |
 
 Report which hop is missing (no instance / no group / no API / no `publish_id`),
 and warn when `sl_domain` is used for public access instead of `eip_address`.
@@ -228,15 +229,15 @@ until `status == "Running"`:
 skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hcloud APIG CreateInstanceV2 --cli-region={region} --instance_name={instance_name} --spec_id={spec_id} --vpc_id={vpc_id} --subnet_id={subnet_id} --security_group_id={security_group_id} --loadbalancer_provider={loadbalancer_provider} --available_zone_ids.1={available_zone_id}
 ```
 
-| Parameter | Required | Description |
-| ----------- | ---------- | ------------- |
-| `--instance_name` | No* | Gateway name (needed to identify the instance) |
-| `--spec_id` | No* | `BASIC` (no public access) / `PROFESSIONAL` (public access with `elb`) |
-| `--vpc_id` / `--subnet_id` | No* | VPC / subnet in the target region |
-| `--security_group_id` | No* | Security group (create one first via the VPC service) |
-| `--loadbalancer_provider` | No* | `elb` for public access, `lvs` for internal only |
-| `--available_zone_ids.1` | No* | AZ code like `ap-southeast-3a` (NOT a UUID) |
-| `--enterprise_project_id` | No | Required for enterprise accounts; use `"0"` for the default project |
+| Parameter                  | Required | Description                                                            |
+| -------------------------- | -------- | ---------------------------------------------------------------------- |
+| `--instance_name`          | No*      | Gateway name (needed to identify the instance)                         |
+| `--spec_id`                | No*      | `BASIC` (no public access) / `PROFESSIONAL` (public access with `elb`) |
+| `--vpc_id` / `--subnet_id` | No*      | VPC / subnet in the target region                                      |
+| `--security_group_id`      | No*      | Security group (create one first via the VPC service)                  |
+| `--loadbalancer_provider`  | No*      | `elb` for public access, `lvs` for internal only                       |
+| `--available_zone_ids.1`   | No*      | AZ code like `ap-southeast-3a` (NOT a UUID)                            |
+| `--enterprise_project_id`  | No       | Required for enterprise accounts; use `"0"` for the default project    |
 
 *The current KooCLI metadata marks CreateInstanceV2 parameters optional, but the
 APIG API rejects the request without `spec_id`, `vpc_id`, `subnet_id`,
@@ -267,11 +268,11 @@ gateway (bandwidth minimum 5 Mbit/s):
 skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hcloud APIG AddIngressEipV2 --cli-region={region} --instance_id={instance_id} --bandwidth_charging_mode=bandwidth --bandwidth_size=5
 ```
 
-| Parameter | Required | Description |
-| ----------- | ---------- | ------------- |
-| `--instance_id` | Yes | Gateway ID |
-| `--bandwidth_charging_mode` | No | `bandwidth` or `traffic` |
-| `--bandwidth_size` | No | Ingress bandwidth in Mbit/s (min 5) |
+| Parameter                   | Required | Description                         |
+| --------------------------- | -------- | ----------------------------------- |
+| `--instance_id`             | Yes      | Gateway ID                          |
+| `--bandwidth_charging_mode` | No       | `bandwidth` or `traffic`            |
+| `--bandwidth_size`          | No       | Ingress bandwidth in Mbit/s (min 5) |
 
 Verification after binding: `ListInstancesV2` `eip_address` may **not** appear
 promptly (verified: still `null` 8 minutes after success) — do NOT rely on it as
@@ -288,11 +289,11 @@ or the EIP list in the APIG console. Works only with `elb`-provider instances.
 skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hcloud APIG CreateApiGroupV2 --cli-region={region} --instance_id={instance_id} --name={name}
 ```
 
-| Parameter | Required | Description |
-| ----------- | ---------- | ------------- |
-| `--instance_id` | Yes | Gateway ID |
-| `--name` | Yes | Group name (3-255 chars, starts with letter/digit) |
-| `--remark` | No | Description |
+| Parameter       | Required | Description                                        |
+| --------------- | -------- | -------------------------------------------------- |
+| `--instance_id` | Yes      | Gateway ID                                         |
+| `--name`        | Yes      | Group name (3-255 chars, starts with letter/digit) |
+| `--remark`      | No       | Description                                        |
 
 ### Manage — Create API
 
@@ -302,19 +303,19 @@ skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hclo
 skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hcloud APIG CreateApiV2 --cli-region={region} --instance_id={instance_id} --group_id={group_id} --type={type} --name={name} --req_protocol={req_protocol} --req_method={req_method} --req_uri={req_uri} --auth_type={auth_type} --backend_type={backend_type}
 ```
 
-| Parameter | Required | Description |
-| ----------- | ---------- | ------------- |
-| `--instance_id` | Yes | Gateway ID |
-| `--group_id` | Yes | API group ID |
-| `--type` | Yes | API type, e.g. `1` (public) |
-| `--name` | Yes | API name — `[a-zA-Z0-9_]+` only, NO hyphens |
-| `--req_protocol` | Yes | `HTTPS` / `HTTP` / `BOTH` |
-| `--req_method` | Yes | `GET` / `POST` / `PUT` / `DELETE` / `PATCH` / `HEAD` / `OPTIONS` / `ANY` |
-| `--req_uri` | Yes | Request URI, e.g. `/demo` |
-| `--auth_type` | Yes | `IAM` / `APP` / `NONE` |
-| `--backend_type` | Yes | `HTTP` / `MOCK` / `FUNCTION` / `VPC_CHANNEL`. **Known limitation (KooCLI 7.2.12, verified):** creating an HTTP-backend API via `CreateApiV2` fails with `APIG.2011 invalid req_protocol` for every reasonable parameter combination, while `MOCK`/`FUNCTION` backends succeed. If an HTTP backend is required, use the APIG console, or create the API with a `MOCK`/`FUNCTION` backend and switch it in the console. |
-| `--backend_api.req_uri` / `--backend_api.req_method` / `--backend_api.url_domain` | No | Backend routing when `backend_type=HTTP` |
-| `--cors` | No | Set `true` when CORS preflight is required |
+| Parameter                                                                         | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--instance_id`                                                                   | Yes      | Gateway ID                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `--group_id`                                                                      | Yes      | API group ID                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `--type`                                                                          | Yes      | API type, e.g. `1` (public)                                                                                                                                                                                                                                                                                                                                                                                           |
+| `--name`                                                                          | Yes      | API name — `[a-zA-Z0-9_]+` only, NO hyphens                                                                                                                                                                                                                                                                                                                                                                           |
+| `--req_protocol`                                                                  | Yes      | `HTTPS` / `HTTP` / `BOTH`                                                                                                                                                                                                                                                                                                                                                                                             |
+| `--req_method`                                                                    | Yes      | `GET` / `POST` / `PUT` / `DELETE` / `PATCH` / `HEAD` / `OPTIONS` / `ANY`                                                                                                                                                                                                                                                                                                                                              |
+| `--req_uri`                                                                       | Yes      | Request URI, e.g. `/demo`                                                                                                                                                                                                                                                                                                                                                                                             |
+| `--auth_type`                                                                     | Yes      | `IAM` / `APP` / `NONE`                                                                                                                                                                                                                                                                                                                                                                                                |
+| `--backend_type`                                                                  | Yes      | `HTTP` / `MOCK` / `FUNCTION` / `VPC_CHANNEL`. **Known limitation (KooCLI 7.2.12, verified):** creating an HTTP-backend API via `CreateApiV2` fails with `APIG.2011 invalid req_protocol` for every reasonable parameter combination, while `MOCK`/`FUNCTION` backends succeed. If an HTTP backend is required, use the APIG console, or create the API with a `MOCK`/`FUNCTION` backend and switch it in the console. |
+| `--backend_api.req_uri` / `--backend_api.req_method` / `--backend_api.url_domain` | No       | Backend routing when `backend_type=HTTP`                                                                                                                                                                                                                                                                                                                                                                              |
+| `--cors`                                                                          | No       | Set `true` when CORS preflight is required                                                                                                                                                                                                                                                                                                                                                                            |
 
 ### Manage — Update API
 
@@ -324,11 +325,11 @@ skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hclo
 skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hcloud APIG UpdateApiV2 --cli-region={region} --instance_id={instance_id} --group_id={group_id} --api_id={api_id} --type={type} --name={name} --req_protocol={req_protocol} --req_method={req_method} --req_uri={req_uri} --auth_type={auth_type} --backend_type={backend_type}
 ```
 
-| Parameter | Required | Description |
-| ----------- | ---------- | ------------- |
-| `--api_id` | Yes | API ID (from `ListApisV2`) |
-| `--instance_id` / `--group_id` | Yes | Locate the API inside the gateway |
-| remaining | Yes | Same required fields as `CreateApiV2` |
+| Parameter                      | Required | Description                           |
+| ------------------------------ | -------- | ------------------------------------- |
+| `--api_id`                     | Yes      | API ID (from `ListApisV2`)            |
+| `--instance_id` / `--group_id` | Yes      | Locate the API inside the gateway     |
+| remaining                      | Yes      | Same required fields as `CreateApiV2` |
 
 ### Manage — Publish / Offline API
 
@@ -341,13 +342,13 @@ skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hclo
 skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hcloud APIG BatchPublishOrOfflineApiV2 --cli-region={region} --instance_id={instance_id} --action=online --env_id=a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6 --apis.1=9c8f2d0a111122223333444455556666
 ```
 
-| Parameter | Required | Description |
-| ----------- | ---------- | ------------- |
-| `--action` | Yes | `online` (publish) / `offline` (take offline) |
-| `--env_id` | Yes | Environment **ID** (NOT the name). Query it first with `hcloud APIG ListEnvironmentsV2 --cli-region={region} --instance_id={instance_id}` and use the returned `env_id` — the name `RELEASE` is rejected with APIG.3003. |
-| `--apis.1` | Yes* | 1-based array of API IDs (max 1000). Or use `--group_id` instead. |
-| `--group_id` | No | Publish/offline all APIs of a group (alternative to `apis`) |
-| `--remark` | No | Description |
+| Parameter    | Required | Description                                                                                                                                                                                                              |
+| ------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--action`   | Yes      | `online` (publish) / `offline` (take offline)                                                                                                                                                                            |
+| `--env_id`   | Yes      | Environment **ID** (NOT the name). Query it first with `hcloud APIG ListEnvironmentsV2 --cli-region={region} --instance_id={instance_id}` and use the returned `env_id` — the name `RELEASE` is rejected with APIG.3003. |
+| `--apis.1`   | Yes*     | 1-based array of API IDs (max 1000). Or use `--group_id` instead.                                                                                                                                                        |
+| `--group_id` | No       | Publish/offline all APIs of a group (alternative to `apis`)                                                                                                                                                              |
+| `--remark`   | No       | Description                                                                                                                                                                                                              |
 
 ### Manage — Create Throttling Policy
 
@@ -358,16 +359,16 @@ skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hclo
 skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hcloud APIG CreateRequestThrottlingPolicyV2 --cli-region={region} --instance_id={instance_id} --name={name} --time_unit={time_unit} --time_interval={time_interval} --api_call_limits={api_call_limits}
 ```
 
-| Parameter | Required | Description |
-| ----------- | ---------- | ------------- |
-| `--instance_id` | Yes | Gateway ID |
-| `--name` | Yes | Policy name — `[a-zA-Z0-9_]+` only, NO hyphens (same constraint as API names, see Critical Warning 7) |
-| `--time_unit` | Yes | `SECOND` / `MINUTE` / `HOUR` / `DAY` |
-| `--time_interval` | Yes | Time interval in the unit |
-| `--api_call_limits` | Yes | Max API calls within the interval |
-| `--app_call_limits` | No | Per-app quota (use for per-user limits) |
-| `--user_call_limits` / `--ip_call_limits` | No | Per-user / per-IP limits |
-| `--enable_adaptive_control` | No | Adaptive throttling (default false) |
+| Parameter                                 | Required | Description                                                                                           |
+| ----------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `--instance_id`                           | Yes      | Gateway ID                                                                                            |
+| `--name`                                  | Yes      | Policy name — `[a-zA-Z0-9_]+` only, NO hyphens (same constraint as API names, see Critical Warning 7) |
+| `--time_unit`                             | Yes      | `SECOND` / `MINUTE` / `HOUR` / `DAY`                                                                  |
+| `--time_interval`                         | Yes      | Time interval in the unit                                                                             |
+| `--api_call_limits`                       | Yes      | Max API calls within the interval                                                                     |
+| `--app_call_limits`                       | No       | Per-app quota (use for per-user limits)                                                               |
+| `--user_call_limits` / `--ip_call_limits` | No       | Per-user / per-IP limits                                                                              |
+| `--enable_adaptive_control`               | No       | Adaptive throttling (default false)                                                                   |
 
 ### Delete — Instance
 
@@ -378,9 +379,9 @@ confirmation required before running**):
 skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hcloud APIG DeleteInstancesV2 --cli-region={region} --instance_id={instance_id}
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--instance_id` | Yes | Gateway ID to delete |
+| Parameter       | Required | Description          |
+| --------------- | -------- | -------------------- |
+| `--instance_id` | Yes      | Gateway ID to delete |
 
 ### Delete — API
 
@@ -393,10 +394,10 @@ confirmation required before running**):
 skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hcloud APIG DeleteApiV2 --cli-region={region} --instance_id={instance_id} --api_id={api_id}
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--instance_id` | Yes | Gateway ID |
-| `--api_id` | Yes | API ID to delete (from `ListApisV2`) |
+| Parameter       | Required | Description                          |
+| --------------- | -------- | ------------------------------------ |
+| `--instance_id` | Yes      | Gateway ID                           |
+| `--api_id`      | Yes      | API ID to delete (from `ListApisV2`) |
 
 > An API group cannot be deleted while it still contains APIs (APIG.3415). Use
 > this action to delete each API in the group first, then delete the group.
@@ -410,14 +411,14 @@ confirmation required before running**):
 skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hcloud APIG DeleteApiGroupV2 --cli-region={region} --instance_id={instance_id} --group_id={group_id}
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--instance_id` | Yes | Gateway ID |
-| `--group_id` | Yes | API group ID to delete |
+| Parameter       | Required | Description            |
+| --------------- | -------- | ---------------------- |
+| `--instance_id` | Yes      | Gateway ID             |
+| `--group_id`    | Yes      | API group ID to delete |
 
 > **The group must be empty first:** APIG rejects deleting a group that still
 > contains APIs (`APIG.3415 The API group cannot be deleted because it contains
-> APIs`). Delete all APIs in the group with `huawei_delete_apig_api`
+APIs`). Delete all APIs in the group with `huawei_delete_apig_api`
 > (`DeleteApiV2`) before deleting the group. Only after every API is gone does
 > `DeleteApiGroupV2` succeed.
 
@@ -435,24 +436,24 @@ skill-quality-cli run --skill-name huawei-cloud-apig-instance-management -- hclo
 The generic invocation shape is `hcloud APIG <Operation> --cli-region=<region> [--key=value ...]`
 — this is a **format description only**: `<...>` and `[...]` are placeholders, never executed verbatim.
 
-| Feature | Description | Example |
-| --------- | ------------- | --------- |
-| Service name | `APIG` (CLI help display; metadata dir `apig`) | `hcloud APIG ListInstancesV2 --cli-region={region}` |
-| Operation name | PascalCase, verified against the KooCLI APIG help output | `ListInstancesV2` |
-| Region | `--cli-region=<value>` | `--cli-region=cn-north-4` |
-| Simple param | `--key=value` | `--instance_id=xxx` |
-| Indexed array param | `--key.N=value` (1-based) | `--apis.1=xxx` |
-| Nested object param | `--key.sub=value` | `--backend_api.req_uri=/demo` |
+| Feature             | Description                                              | Example                                             |
+| ------------------- | -------------------------------------------------------- | --------------------------------------------------- |
+| Service name        | `APIG` (CLI help display; metadata dir `apig`)           | `hcloud APIG ListInstancesV2 --cli-region={region}` |
+| Operation name      | PascalCase, verified against the KooCLI APIG help output | `ListInstancesV2`                                   |
+| Region              | `--cli-region=<value>`                                   | `--cli-region=cn-north-4`                           |
+| Simple param        | `--key=value`                                            | `--instance_id=xxx`                                 |
+| Indexed array param | `--key.N=value` (1-based)                                | `--apis.1=xxx`                                      |
+| Nested object param | `--key.sub=value`                                        | `--backend_api.req_uri=/demo`                       |
 
 ## Tool Parameter Validation (Mandatory)
 
 Validate every parameter before execution; illegal input is rejected directly (never passed to `hcloud`):
 
-| Validation | Rule |
-| ---------- | ---- |
-| Whitelist enum | Documented value sets (`--cli-region`, `--status`, `--spec`, `--loadbalancer_provider`, `--protocol`, ...) must match exactly; anything else → refuse, listing allowed values |
-| Type check | Numeric params (`--limit`, `--offset`, `--bandwidth`, `--port`) must parse as integers; name/ID params must be strings matching `[a-zA-Z0-9_-]+` (no hyphens, see Critical Warnings #7) |
-| Reject unknown | Params absent from `hcloud APIG <Operation> --help` are rejected before running the command |
+| Validation     | Rule                                                                                                                                                                                    |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Whitelist enum | Documented value sets (`--cli-region`, `--status`, `--spec`, `--loadbalancer_provider`, `--protocol`, ...) must match exactly; anything else → refuse, listing allowed values           |
+| Type check     | Numeric params (`--limit`, `--offset`, `--bandwidth`, `--port`) must parse as integers; name/ID params must be strings matching `[a-zA-Z0-9_-]+` (no hyphens, see Critical Warnings #7) |
+| Reject unknown | Params absent from `hcloud APIG <Operation> --help` are rejected before running the command                                                                                             |
 
 ## Reference Documents
 
@@ -465,6 +466,7 @@ Validate every parameter before execution; illegal input is rejected directly (n
 APIG documentation: https://support.huaweicloud.com/apig/
 
 <!-- cli-inject-version: 3.9.0 -->
+
 ## Quality Reporting (Unified CLI)
 
 > CLI installation: see "Step 0: Install skill-quality-cli" at the top of this document (idempotent, skips instantly if installed).

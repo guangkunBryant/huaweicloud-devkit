@@ -10,13 +10,13 @@ This document defines how to verify each action class of the skill.
 
 ## Query Actions (R3) — Verification
 
-| Action | Verification Command | Expected Result |
-|--------|---------------------|-----------------|
-| `huawei_list_cts_trackers` | `hcloud CTS ListTrackers --cli-region={region} --project_id={project_id}` | JSON array with tracker objects (name, type, status, bucket name) |
-| `huawei_list_cts_traces` | `hcloud CTS ListTraces --cli-region={region} --project_id={project_id} --trace_type=system --limit=10` | JSON array of trace objects in last hour (empty if no events) |
-| `huawei_list_cts_operations` | `hcloud CTS ListOperations --cli-region={region} --project_id={project_id}` | JSON array of operations grouped by service |
-| `huawei_list_cts_notifications` | `hcloud CTS ListNotifications --cli-region={region} --project_id={project_id} --notification_type=smn` | JSON array of notifications (may be empty) |
-| `huawei_list_cts_trace_resources` | `hcloud CTS ListTraceResources --cli-region={region} --domain_id={domain_id}` | JSON array of tracked resources |
+| Action                            | Verification Command                                                                                   | Expected Result                                                   |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `huawei_list_cts_trackers`        | `hcloud CTS ListTrackers --cli-region={region} --project_id={project_id}`                              | JSON array with tracker objects (name, type, status, bucket name) |
+| `huawei_list_cts_traces`          | `hcloud CTS ListTraces --cli-region={region} --project_id={project_id} --trace_type=system --limit=10` | JSON array of trace objects in last hour (empty if no events)     |
+| `huawei_list_cts_operations`      | `hcloud CTS ListOperations --cli-region={region} --project_id={project_id}`                            | JSON array of operations grouped by service                       |
+| `huawei_list_cts_notifications`   | `hcloud CTS ListNotifications --cli-region={region} --project_id={project_id} --notification_type=smn` | JSON array of notifications (may be empty)                        |
+| `huawei_list_cts_trace_resources` | `hcloud CTS ListTraceResources --cli-region={region} --domain_id={domain_id}`                          | JSON array of tracked resources                                   |
 
 **Error semantics:** empty lists are valid results (e.g. no tracker → no traces — see Critical Warnings
 in SKILL.md). Non-zero exit / error JSON indicates auth, scope, or parameter problems.
@@ -36,11 +36,11 @@ in SKILL.md). Non-zero exit / error JSON indicates auth, scope, or parameter pro
 
 Always preview the exact command and wait for explicit user confirmation before execution.
 
-| Action | Verification After Execution |
-|--------|------------------------------|
-| `huawei_create_cts_tracker` | `ListTrackers` shows the new tracker with expected type/bucket/LTS flags |
+| Action                           | Verification After Execution                                                  |
+| -------------------------------- | ----------------------------------------------------------------------------- |
+| `huawei_create_cts_tracker`      | `ListTrackers` shows the new tracker with expected type/bucket/LTS flags      |
 | `huawei_create_cts_notification` | `ListNotifications --notification_type={smn\|fun}` shows the new notification |
-| `huawei_delete_cts_tracker` | `ListTrackers` no longer contains the deleted data tracker |
+| `huawei_delete_cts_tracker`      | `ListTrackers` no longer contains the deleted data tracker                    |
 
 **Resource lifecycle note:** the system tracker cannot be deleted (only data trackers can).
 Deleting a tracker does not remove already-collected traces.

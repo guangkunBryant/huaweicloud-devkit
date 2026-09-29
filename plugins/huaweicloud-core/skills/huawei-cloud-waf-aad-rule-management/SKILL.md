@@ -16,12 +16,42 @@ description: >-
   rate limiting, 地域封禁, geo rule, CNAME接入, WAF诊断, 规则顺序, 误报, EIP防护, 防护覆盖,
   waf aad, huawei-cloud-waf-aad-rule-management.
 tags: [huawei-cloud waf aad security ddos web-firewall]
-triggers: ["WAF", "Web应用防火墙", "Web Application Firewall", "AAD", "Anti-DDoS", "抗DDoS", "DDoS防护", "防火墙", "web protection", "IP黑名单", "IP白名单", "blacklist", "whitelist", "CC防护", "CC攻击", "限速", "rate limiting", "地域封禁", "geo rule", "CNAME接入", "WAF诊断", "规则顺序", "误报", "EIP防护", "防护覆盖", "waf aad", "huawei-cloud-waf-aad-rule-management"]
+triggers:
+  [
+    'WAF',
+    'Web应用防火墙',
+    'Web Application Firewall',
+    'AAD',
+    'Anti-DDoS',
+    '抗DDoS',
+    'DDoS防护',
+    '防火墙',
+    'web protection',
+    'IP黑名单',
+    'IP白名单',
+    'blacklist',
+    'whitelist',
+    'CC防护',
+    'CC攻击',
+    '限速',
+    'rate limiting',
+    '地域封禁',
+    'geo rule',
+    'CNAME接入',
+    'WAF诊断',
+    '规则顺序',
+    '误报',
+    'EIP防护',
+    '防护覆盖',
+    'waf aad',
+    'huawei-cloud-waf-aad-rule-management',
+  ]
 ---
 
 # Huawei Cloud WAF / AAD Skill (huawei-cloud-waf-aad-rule-management)
 
 <!-- cli-install-version: 3.7.3 -->
+
 ## 第一步：安装 skill-quality-cli（幂等，已安装则跳过）
 
 ```bash
@@ -56,15 +86,15 @@ the right order", and "is every public EIP covered by Anti-DDoS".
 
 ## Critical Warnings
 
-| # | Warning | Why it matters |
-|---|---------|----------------|
-| 1 | **WAF requires CNAME redirect** | DNS must point to the **WAF endpoint (CNAME)**, not the origin server IP. Pointing DNS at the origin bypasses WAF protection entirely. |
-| 2 | **Cloud WAF requires a premium/dedicated instance** | WAF protection domains only work on a paid Cloud WAF (premium/独享) instance; the free tier does not cover all rule types and features. |
-| 3 | **AAD Standard vs Enterprise** | **Standard** protects only a **single IP/EIP**; **Enterprise** protects an **entire network segment (网段)**. Selecting the wrong package leaves IPs unprotected. |
-| 4 | **Rule order matters** | Within a WAF policy, rules are evaluated **top-to-bottom**. A high priority (small `priority` value) rule listed earlier is applied first; mis-ordering causes false positives / false negatives. |
-| 5 | **Rule changes default to report mode first** | For rule-type changes (custom, IP blacklist, CC, geo), first deploy with action `2` (log / report-only mode) to verify impact, then switch to `0` (block) / `1` (allow) once validated — never block production traffic blindly. |
-| 6 | **Public-facing apps MUST use WAF** | Any internet-exposed web application must be behind WAF. Public EIPs should also be covered by AAD for DDoS protection. |
-| 7 | **Never fabricate AAD instance CLI commands** | `hcloud AAD CreateInstance` / `DeleteInstance` do not exist. Do not invent them; use the console guidance in this skill. |
+| #   | Warning                                             | Why it matters                                                                                                                                                                                                                   |
+| --- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **WAF requires CNAME redirect**                     | DNS must point to the **WAF endpoint (CNAME)**, not the origin server IP. Pointing DNS at the origin bypasses WAF protection entirely.                                                                                           |
+| 2   | **Cloud WAF requires a premium/dedicated instance** | WAF protection domains only work on a paid Cloud WAF (premium/独享) instance; the free tier does not cover all rule types and features.                                                                                          |
+| 3   | **AAD Standard vs Enterprise**                      | **Standard** protects only a **single IP/EIP**; **Enterprise** protects an **entire network segment (网段)**. Selecting the wrong package leaves IPs unprotected.                                                                |
+| 4   | **Rule order matters**                              | Within a WAF policy, rules are evaluated **top-to-bottom**. A high priority (small `priority` value) rule listed earlier is applied first; mis-ordering causes false positives / false negatives.                                |
+| 5   | **Rule changes default to report mode first**       | For rule-type changes (custom, IP blacklist, CC, geo), first deploy with action `2` (log / report-only mode) to verify impact, then switch to `0` (block) / `1` (allow) once validated — never block production traffic blindly. |
+| 6   | **Public-facing apps MUST use WAF**                 | Any internet-exposed web application must be behind WAF. Public EIPs should also be covered by AAD for DDoS protection.                                                                                                          |
+| 7   | **Never fabricate AAD instance CLI commands**       | `hcloud AAD CreateInstance` / `DeleteInstance` do not exist. Do not invent them; use the console guidance in this skill.                                                                                                         |
 
 ## Prerequisites
 
@@ -83,7 +113,7 @@ the right order", and "is every public EIP covered by Anti-DDoS".
    KooCLI automatically uses the default project of the authenticated profile when `--project_id` is
    omitted (verified on KooCLI 7.2.12), so the command examples in this skill omit it; multi-project
    accounts may append `--project_id=<project_id>` explicitly. To list projects, see the console
-   (*My Credentials → Projects*).
+   (_My Credentials → Projects_).
 4. **IAM permissions** (least privilege, see `references/iam-policies.md`):
    - Read/query: `waf:instance:list`, `waf:host:list`, `waf:policy:list`, `waf:rule:list`,
      `antiddos:instance:list`, `antiddos:ip:list`, `antiddos:package:list`, and `eps:*:get`.
@@ -96,31 +126,31 @@ the right order", and "is every public EIP covered by Anti-DDoS".
 
 ## Action Map (17 actions)
 
-| R-level | Category | Action | Backing CLI operation(s) |
-|---------|----------|--------|--------------------------|
-| R3 (read-only, auto) | Query | `huawei_list_waf_instances` | `WAF ListInstance`, `WAF ListCompositeHosts`, `WAF ShowCompositeHost` |
-| R3 | Query | `huawei_list_waf_policies` | `WAF ListPolicy` |
-| R3 | Query | `huawei_list_waf_custom_rules` | `WAF ListCustomRules` |
-| R3 | Query | `huawei_list_waf_whiteblackip_rules` | `WAF ListWhiteblackipRule` |
-| R3 | Query | `huawei_list_waf_cc_rules` | `WAF ListCcRules` |
-| R3 | Query | `huawei_list_waf_geo_rules` | `WAF ListGeoipRule` |
-| R3 | Query | `huawei_list_aad_instances` | `AAD ListInstance`, `AAD ListPackage` |
-| R3 | Diagnose | `huawei_analyze_waf_cname_status` | `WAF ListCompositeHosts`, `WAF ShowCompositeHost` |
-| R3 | Diagnose | `huawei_analyze_waf_rule_order` | `WAF ListCustomRules`, `WAF ListWhiteblackipRule`, `WAF ListCcRules`, `WAF ListGeoipRule` |
-| R3 | Diagnose | `huawei_analyze_aad_protection` | `AAD ListInstance`, `AAD ListProtectedIp`, `AAD ListUnboundProtectedIp` |
-| R2 (preview + confirm) | Manage | `huawei_create_waf_custom_rule` | `WAF BatchCreateCustomRule` |
-| R2 | Manage | `huawei_create_waf_ip_blacklist_rule` | `WAF BatchCreateWhiteblackipRule` |
-| R2 | Manage | `huawei_create_waf_cc_rule` | `WAF BatchCreateCcRule` |
-| R2 | Manage | `huawei_create_waf_geo_rule` | `WAF BatchCreateGeoIpRule` |
-| R2 | Manage | `huawei_create_aad_instance` | **Console-only — no CLI** (see note below) |
-| R1 (preview + explicit confirm) | Delete | `huawei_delete_waf_rule` | `WAF DeleteCustomRule` / `DeleteWhiteBlackIpRule` / `DeleteCcRule` / `DeleteGeoipRule` |
-| R1 (preview + explicit confirm) | Delete | `huawei_delete_aad_instance` | **Console-only — no CLI** (see note below) |
+| R-level                         | Category | Action                                | Backing CLI operation(s)                                                                  |
+| ------------------------------- | -------- | ------------------------------------- | ----------------------------------------------------------------------------------------- |
+| R3 (read-only, auto)            | Query    | `huawei_list_waf_instances`           | `WAF ListInstance`, `WAF ListCompositeHosts`, `WAF ShowCompositeHost`                     |
+| R3                              | Query    | `huawei_list_waf_policies`            | `WAF ListPolicy`                                                                          |
+| R3                              | Query    | `huawei_list_waf_custom_rules`        | `WAF ListCustomRules`                                                                     |
+| R3                              | Query    | `huawei_list_waf_whiteblackip_rules`  | `WAF ListWhiteblackipRule`                                                                |
+| R3                              | Query    | `huawei_list_waf_cc_rules`            | `WAF ListCcRules`                                                                         |
+| R3                              | Query    | `huawei_list_waf_geo_rules`           | `WAF ListGeoipRule`                                                                       |
+| R3                              | Query    | `huawei_list_aad_instances`           | `AAD ListInstance`, `AAD ListPackage`                                                     |
+| R3                              | Diagnose | `huawei_analyze_waf_cname_status`     | `WAF ListCompositeHosts`, `WAF ShowCompositeHost`                                         |
+| R3                              | Diagnose | `huawei_analyze_waf_rule_order`       | `WAF ListCustomRules`, `WAF ListWhiteblackipRule`, `WAF ListCcRules`, `WAF ListGeoipRule` |
+| R3                              | Diagnose | `huawei_analyze_aad_protection`       | `AAD ListInstance`, `AAD ListProtectedIp`, `AAD ListUnboundProtectedIp`                   |
+| R2 (preview + confirm)          | Manage   | `huawei_create_waf_custom_rule`       | `WAF BatchCreateCustomRule`                                                               |
+| R2                              | Manage   | `huawei_create_waf_ip_blacklist_rule` | `WAF BatchCreateWhiteblackipRule`                                                         |
+| R2                              | Manage   | `huawei_create_waf_cc_rule`           | `WAF BatchCreateCcRule`                                                                   |
+| R2                              | Manage   | `huawei_create_waf_geo_rule`          | `WAF BatchCreateGeoIpRule`                                                                |
+| R2                              | Manage   | `huawei_create_aad_instance`          | **Console-only — no CLI** (see note below)                                                |
+| R1 (preview + explicit confirm) | Delete   | `huawei_delete_waf_rule`              | `WAF DeleteCustomRule` / `DeleteWhiteBlackIpRule` / `DeleteCcRule` / `DeleteGeoipRule`    |
+| R1 (preview + explicit confirm) | Delete   | `huawei_delete_aad_instance`          | **Console-only — no CLI** (see note below)                                                |
 
 > **AAD instance creation/deletion (mandatory limitation):** `hcloud AAD` does **not** support
 > `CreateInstance` or `DeleteInstance` (verified on KooCLI 7.2.12: `[USE_ERROR]Operation
-> CreateInstance is not supported.`). AAD instances are purchased as period packages (包周期) in the
-> **console**: *Console → Security → Anti-DDoS → Anti-DDoS Instance → Purchase instance*; to delete,
-> unsubscribe/退订 via *Anti-DDoS Instance → More → Unsubscribe*. `huawei_create_aad_instance` and
+CreateInstance is not supported.`). AAD instances are purchased as period packages (包周期) in the
+> **console**: _Console → Security → Anti-DDoS → Anti-DDoS Instance → Purchase instance_; to delete,
+> unsubscribe/退订 via _Anti-DDoS Instance → More → Unsubscribe_. `huawei_create_aad_instance` and
 > `huawei_delete_aad_instance` SHALL NOT be routed to any made-up CLI command. Instead:
 >
 > - List purchased packages: `hcloud AAD ListPackage --cli-region=<region>` (see Core Commands)
@@ -273,17 +303,17 @@ skill-quality-cli run --skill-name huawei-cloud-waf-aad-rule-management -- hclou
 `hcloud AAD` does **NOT** support `CreateInstance` / `DeleteInstance` (verified: `[USE_ERROR]
 Operation CreateInstance is not supported.`). **Do NOT fabricate CLI commands for these actions.**
 
-| Intent | Supported path |
-|--------|----------------|
-| Create / purchase an AAD instance (包周期) | **Console**: Security → Anti-DDoS → Anti-DDoS Instance → `Purchase Anti-DDoS Instance`; select Standard (single IP) or Enterprise (whole 网段) package |
-| Delete / unsubscribe an AAD instance | **Console**: Anti-DDoS Instance → select instance → More → `Unsubscribe` (退订) |
-| Verify packages after purchase | `hcloud AAD ListPackage --cli-region={region}` |
-| Verify protection coverage (alternative diagnostic path) | `hcloud AAD ListInstance` + `hcloud AAD ListProtectedIp` + `hcloud AAD ListUnboundProtectedIp` |
+| Intent                                                   | Supported path                                                                                                                                         |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Create / purchase an AAD instance (包周期)               | **Console**: Security → Anti-DDoS → Anti-DDoS Instance → `Purchase Anti-DDoS Instance`; select Standard (single IP) or Enterprise (whole 网段) package |
+| Delete / unsubscribe an AAD instance                     | **Console**: Anti-DDoS Instance → select instance → More → `Unsubscribe` (退订)                                                                        |
+| Verify packages after purchase                           | `hcloud AAD ListPackage --cli-region={region}`                                                                                                         |
+| Verify protection coverage (alternative diagnostic path) | `hcloud AAD ListInstance` + `hcloud AAD ListProtectedIp` + `hcloud AAD ListUnboundProtectedIp`                                                         |
 
 ## Parameter Confirmation
 
 All parameter names below are verified against `hcloud <service> <Operation> --help` (KooCLI 7.2.12).
-`{region}` / `{project_id}` are context values; obtain the project ID from *My Credentials → Projects*.
+`{region}` / `{project_id}` are context values; obtain the project ID from _My Credentials → Projects_.
 
 **参数校验（工具参数安全，强制）**: 所有动作参数在拼装 `hcloud` 命令前必须校验，非法输入直接拒绝并向用户说明，禁止把未经校验的参数传入命令执行：
 
@@ -293,40 +323,40 @@ All parameter names below are verified against `hcloud <service> <Operation> --h
 
 ### WAF List / Show (query, R3)
 
-| Command | Required params | Optional params |
-|---------|-----------------|-----------------|
-| `ListCompositeHosts` | `--cli-region`, `--project_id` | `--enterprise_project_id`, `--hostname`, `--is_https`, `--page`, `--pagesize`, `--policyname`, `--protect_status`, `--waf_type` |
-| `ListInstance` | `--cli-region`, `--project_id` | `--enterprise_project_id`, `--instancename`, `--page`, `--pagesize` |
-| `ShowCompositeHost` | `--cli-region`, `--project_id`, `--host_id` | `--enterprise_project_id` |
-| `ListPolicy` | `--cli-region`, `--project_id` | `--enterprise_project_id`, `--name`, `--page`, `--pagesize` |
-| `ListCustomRules` | `--cli-region`, `--project_id`, `--policy_id` | `--enterprise_project_id`, `--limit`, `--offset`, `--page`, `--pagesize` |
-| `ListWhiteblackipRule` | `--cli-region`, `--project_id`, `--policy_id` | `--enterprise_project_id`, `--name`, `--page`, `--pagesize` |
-| `ListCcRules` | `--cli-region`, `--project_id`, `--policy_id` | `--category`, `--enterprise_project_id`, `--limit`, `--name`, `--offset`, `--page`, `--pagesize`, `--status`, `--tag_type` |
-| `ListGeoipRule` | `--cli-region`, `--project_id`, `--policy_id` | `--enterprise_project_id`, `--page`, `--pagesize` |
+| Command                | Required params                               | Optional params                                                                                                                 |
+| ---------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `ListCompositeHosts`   | `--cli-region`, `--project_id`                | `--enterprise_project_id`, `--hostname`, `--is_https`, `--page`, `--pagesize`, `--policyname`, `--protect_status`, `--waf_type` |
+| `ListInstance`         | `--cli-region`, `--project_id`                | `--enterprise_project_id`, `--instancename`, `--page`, `--pagesize`                                                             |
+| `ShowCompositeHost`    | `--cli-region`, `--project_id`, `--host_id`   | `--enterprise_project_id`                                                                                                       |
+| `ListPolicy`           | `--cli-region`, `--project_id`                | `--enterprise_project_id`, `--name`, `--page`, `--pagesize`                                                                     |
+| `ListCustomRules`      | `--cli-region`, `--project_id`, `--policy_id` | `--enterprise_project_id`, `--limit`, `--offset`, `--page`, `--pagesize`                                                        |
+| `ListWhiteblackipRule` | `--cli-region`, `--project_id`, `--policy_id` | `--enterprise_project_id`, `--name`, `--page`, `--pagesize`                                                                     |
+| `ListCcRules`          | `--cli-region`, `--project_id`, `--policy_id` | `--category`, `--enterprise_project_id`, `--limit`, `--name`, `--offset`, `--page`, `--pagesize`, `--status`, `--tag_type`      |
+| `ListGeoipRule`        | `--cli-region`, `--project_id`, `--policy_id` | `--enterprise_project_id`, `--page`, `--pagesize`                                                                               |
 
 ### WAF BatchCreate (write, R2 — indexable array params use `.N` suffix)
 
-| Command | Required params | Key optional params |
-|---------|-----------------|---------------------|
-| `BatchCreateCustomRule` | `--cli-region`, `--project_id`, `--policy_ids.N`, `--name`, `--priority`, `--action.category` (block\|pass\|log), `--time` (bool) | `--conditions.N.category`, `--conditions.N.contents.N`, `--conditions.N.index`, `--conditions.N.logic_operation`, `--conditions.N.value_list_id`, `--action.followed_action_id`, `--description`, `--enterprise_project_id`, `--start`, `--terminal` |
-| `BatchCreateWhiteblackipRule` | `--cli-region`, `--project_id`, `--policy_ids.N`, `--name`, `--white` (0 block / 1 allow / 2 log) | `--addr` (IP or CIDR), `--description`, `--enterprise_project_id`, `--ip_group_id`, `--policyids.N`, `--start`, `--terminal`, `--time_mode` (permanent\|customize) |
-| `BatchCreateCcRule` | `--cli-region`, `--project_id`, `--policy_ids.N`, `--name`, `--mode` (0 standard / 1 advanced), `--limit_num` (1–2147483647), `--limit_period` (1–3600 s), `--tag_type` (ip\|cookie\|header\|other\|policy\|domain\|url), `--action.category` (captcha\|block\|log\|dynamic_block), `--conditions.N.category`, `--conditions.N.logic_operation` | `--action.detail.response.content`, `--action.detail.response.content_type`, `--cc_priority`, `--conditions.N.contents.N`, `--conditions.N.index`, `--conditions.N.value_list_id`, `--description`, `--domain_aggregation`, `--enterprise_project_id`, `--lock_time`, `--priority`, `--region_aggregation`, `--tag_index`, `--unlock_num` |
-| `BatchCreateGeoIpRule` | `--cli-region`, `--project_id`, `--policy_ids.N`, `--geoip`, `--white` (0 block / 1 allow / 2 log) | `--description`, `--enterprise_project_id`, `--ip_type` (v4\|v6\|any), `--name` |
+| Command                       | Required params                                                                                                                                                                                                                                                                                                                                 | Key optional params                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BatchCreateCustomRule`       | `--cli-region`, `--project_id`, `--policy_ids.N`, `--name`, `--priority`, `--action.category` (block\|pass\|log), `--time` (bool)                                                                                                                                                                                                               | `--conditions.N.category`, `--conditions.N.contents.N`, `--conditions.N.index`, `--conditions.N.logic_operation`, `--conditions.N.value_list_id`, `--action.followed_action_id`, `--description`, `--enterprise_project_id`, `--start`, `--terminal`                                                                                      |
+| `BatchCreateWhiteblackipRule` | `--cli-region`, `--project_id`, `--policy_ids.N`, `--name`, `--white` (0 block / 1 allow / 2 log)                                                                                                                                                                                                                                               | `--addr` (IP or CIDR), `--description`, `--enterprise_project_id`, `--ip_group_id`, `--policyids.N`, `--start`, `--terminal`, `--time_mode` (permanent\|customize)                                                                                                                                                                        |
+| `BatchCreateCcRule`           | `--cli-region`, `--project_id`, `--policy_ids.N`, `--name`, `--mode` (0 standard / 1 advanced), `--limit_num` (1–2147483647), `--limit_period` (1–3600 s), `--tag_type` (ip\|cookie\|header\|other\|policy\|domain\|url), `--action.category` (captcha\|block\|log\|dynamic_block), `--conditions.N.category`, `--conditions.N.logic_operation` | `--action.detail.response.content`, `--action.detail.response.content_type`, `--cc_priority`, `--conditions.N.contents.N`, `--conditions.N.index`, `--conditions.N.value_list_id`, `--description`, `--domain_aggregation`, `--enterprise_project_id`, `--lock_time`, `--priority`, `--region_aggregation`, `--tag_index`, `--unlock_num` |
+| `BatchCreateGeoIpRule`        | `--cli-region`, `--project_id`, `--policy_ids.N`, `--geoip`, `--white` (0 block / 1 allow / 2 log)                                                                                                                                                                                                                                              | `--description`, `--enterprise_project_id`, `--ip_type` (v4\|v6\|any), `--name`                                                                                                                                                                                                                                                           |
 
 ### WAF Delete (write, R1)
 
-| Command | Required params | Optional params |
-|---------|-----------------|-----------------|
+| Command                                                                            | Required params                                            | Optional params           |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------- |
 | `DeleteCustomRule` / `DeleteWhiteBlackIpRule` / `DeleteCcRule` / `DeleteGeoipRule` | `--cli-region`, `--project_id`, `--policy_id`, `--rule_id` | `--enterprise_project_id` |
 
 ### AAD (query, R3)
 
-| Command | Required params | Optional params |
-|---------|-----------------|-----------------|
-| `ListInstance` | `--cli-region` | — |
-| `ListPackage` | `--cli-region` | — |
-| `ListProtectedIp` | `--cli-region` | `--ip`, `--limit`, `--offset`, `--package_id`, `--policy_id`, `--tag` |
-| `ListUnboundProtectedIp` | `--cli-region`, `--package_id` | `--limit`, `--offset` |
+| Command                  | Required params                | Optional params                                                       |
+| ------------------------ | ------------------------------ | --------------------------------------------------------------------- |
+| `ListInstance`           | `--cli-region`                 | —                                                                     |
+| `ListPackage`            | `--cli-region`                 | —                                                                     |
+| `ListProtectedIp`        | `--cli-region`                 | `--ip`, `--limit`, `--offset`, `--package_id`, `--policy_id`, `--tag` |
+| `ListUnboundProtectedIp` | `--cli-region`, `--package_id` | `--limit`, `--offset`                                                 |
 
 > `CreateInstance` / `DeleteInstance` for AAD: **do not exist in the CLI** — see the console-only
 > section above. Never guess or fabricate their parameters.
@@ -336,14 +366,14 @@ All parameter names below are verified against `hcloud <service> <Operation> --h
 The generic invocation shape is `hcloud <service> <Operation> --cli-region=<region> [--key=value ...]`
 — this is a **format description only**: `<...>` and `[--key=value]` are placeholders, never executed verbatim.
 
-| Feature | Description | Example |
-|---------|-------------|---------|
-| Service name | `WAF`, `AAD` (as detected from KooCLI 7.2.12 metadata) | `hcloud WAF ...` |
-| Operation name | PascalCase | `ListCompositeHosts`, `BatchCreateCcRule` |
-| Region parameter | `--cli-region=<value>` (required; profile value used if omitted) | `--cli-region=cn-north-4` |
-| Project ID | `--project_id=<value>` (required for WAF) | `--project_id=a1b2...` |
-| Simple parameter | `--key=value` | `--policy_id=p1` |
-| Indexed parameter (array) | `--key.N=valueN` | `--policy_ids.1=pol1`, `--conditions.1.contents.1=/admin` |
+| Feature                   | Description                                                      | Example                                                   |
+| ------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------- |
+| Service name              | `WAF`, `AAD` (as detected from KooCLI 7.2.12 metadata)           | `hcloud WAF ...`                                          |
+| Operation name            | PascalCase                                                       | `ListCompositeHosts`, `BatchCreateCcRule`                 |
+| Region parameter          | `--cli-region=<value>` (required; profile value used if omitted) | `--cli-region=cn-north-4`                                 |
+| Project ID                | `--project_id=<value>` (required for WAF)                        | `--project_id=a1b2...`                                    |
+| Simple parameter          | `--key=value`                                                    | `--policy_id=p1`                                          |
+| Indexed parameter (array) | `--key.N=valueN`                                                 | `--policy_ids.1=pol1`, `--conditions.1.contents.1=/admin` |
 
 ## Reference Documents
 

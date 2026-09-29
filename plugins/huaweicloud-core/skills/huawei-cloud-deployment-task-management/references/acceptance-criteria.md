@@ -18,17 +18,17 @@
 
 ## 2. Action Coverage (9 huawei_* actions)
 
-| Action | Risk | Execution | Acceptance |
-|--------|------|-----------|------------|
-| `huawei_list_clouddeploy_apps` | R3 | auto | `ListAllApp` returns application list JSON |
-| `huawei_list_clouddeploy_tasks` | R3 | auto | `ListDeployTasks` returns task list JSON |
-| `huawei_get_clouddeploy_task` | R3 | auto | `ShowDeployTaskDetail` returns task detail JSON |
-| `huawei_analyze_clouddeploy_failure` | R3 | auto | `ListDeployTaskHistoryByDate` history evaluated for agent/timeout/artifact/permission causes |
-| `huawei_analyze_clouddeploy_artifact` | R3 | auto | Task artifact config verified against the OBS object (`hcloud obs ls`) |
-| `huawei_create_clouddeploy_app` | R2 | preview+confirm | Name uniqueness pre-checked; app created only after confirmation |
-| `huawei_create_clouddeploy_task` | R2 | preview+confirm | Task created referencing an existing app only after confirmation |
-| `huawei_start_clouddeploy_task` | R2 | preview+confirm | Task started only after confirmation; host agent online |
-| `huawei_delete_clouddeploy_task` | R1 | preview+explicit confirm | Task deleted only after explicit second confirmation |
+| Action                                | Risk | Execution                | Acceptance                                                                                   |
+| ------------------------------------- | ---- | ------------------------ | -------------------------------------------------------------------------------------------- |
+| `huawei_list_clouddeploy_apps`        | R3   | auto                     | `ListAllApp` returns application list JSON                                                   |
+| `huawei_list_clouddeploy_tasks`       | R3   | auto                     | `ListDeployTasks` returns task list JSON                                                     |
+| `huawei_get_clouddeploy_task`         | R3   | auto                     | `ShowDeployTaskDetail` returns task detail JSON                                              |
+| `huawei_analyze_clouddeploy_failure`  | R3   | auto                     | `ListDeployTaskHistoryByDate` history evaluated for agent/timeout/artifact/permission causes |
+| `huawei_analyze_clouddeploy_artifact` | R3   | auto                     | Task artifact config verified against the OBS object (`hcloud obs ls`)                       |
+| `huawei_create_clouddeploy_app`       | R2   | preview+confirm          | Name uniqueness pre-checked; app created only after confirmation                             |
+| `huawei_create_clouddeploy_task`      | R2   | preview+confirm          | Task created referencing an existing app only after confirmation                             |
+| `huawei_start_clouddeploy_task`       | R2   | preview+confirm          | Task started only after confirmation; host agent online                                      |
+| `huawei_delete_clouddeploy_task`      | R1   | preview+explicit confirm | Task deleted only after explicit second confirmation                                         |
 
 ## 3. Critical Warnings (must be preserved)
 

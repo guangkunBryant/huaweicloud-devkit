@@ -156,10 +156,7 @@ test('skill SKILL.md files meet minimum content quality bar', () => {
 });
 
 test('huawei-cloud-deployment-task-management skill uses verified KooCLI service and operation names', () => {
-  const body = readFileSync(
-    join(pluginRoot, 'skills', 'huawei-cloud-deployment-task-management', 'SKILL.md'),
-    'utf8',
-  );
+  const body = readFileSync(join(pluginRoot, 'skills', 'huawei-cloud-deployment-task-management', 'SKILL.md'), 'utf8');
   assert.match(body, /CodeArtsDeploy/);
   assert.match(body, /StartDeployTask/);
   assert.match(body, /ListAllApp/);

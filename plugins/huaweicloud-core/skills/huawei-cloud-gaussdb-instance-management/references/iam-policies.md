@@ -24,17 +24,11 @@ Required actions for listing/querying instances, flavors, databases, deployment 
         "gaussdb:showShardDiskMessages",
         "gaussdb:showEip"
       ],
-      "Resource": [
-        "gaussdb:*:*:instance:*",
-        "gaussdb:*:*:flavor:*"
-      ]
+      "Resource": ["gaussdb:*:*:instance:*", "gaussdb:*:*:flavor:*"]
     },
     {
       "Effect": "Allow",
-      "Action": [
-        "vpc:securityGroups:get",
-        "vpc:securityGroupRules:get"
-      ],
+      "Action": ["vpc:securityGroups:get", "vpc:securityGroupRules:get"],
       "Resource": ["*"]
     }
   ]
@@ -60,11 +54,7 @@ Required actions for listing/querying instances, flavors, databases, deployment 
     },
     {
       "Effect": "Allow",
-      "Action": [
-        "vpc:vpcs:get",
-        "vpc:subnets:get",
-        "vpc:securityGroups:get"
-      ],
+      "Action": ["vpc:vpcs:get", "vpc:subnets:get", "vpc:securityGroups:get"],
       "Resource": ["*"]
     }
   ]
@@ -79,10 +69,7 @@ Required actions for listing/querying instances, flavors, databases, deployment 
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "gaussdb:updateDatabasePermission",
-        "gaussdb:deleteInstance"
-      ],
+      "Action": ["gaussdb:updateDatabasePermission", "gaussdb:deleteInstance"],
       "Resource": ["gaussdb:*:*:instance:*"]
     }
   ]

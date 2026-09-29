@@ -16,18 +16,18 @@
 
 ## 2. Action Coverage (10 huawei_* actions)
 
-| Action | Risk | Execution | Acceptance |
-|--------|------|-----------|------------|
-| `huawei_list_cts_trackers` | R3 | auto | `ListTrackers` returns tracker list JSON |
-| `huawei_list_cts_traces` | R3 | auto | `ListTraces` returns traces filterable by from/to/user/service |
-| `huawei_list_cts_operations` | R3 | auto | `ListOperations` returns operation list JSON |
-| `huawei_list_cts_notifications` | R3 | auto | `ListNotifications` returns notification list JSON |
-| `huawei_list_cts_trace_resources` | R3 | auto | `ListTraceResources` returns resource list JSON (uses `--domain_id`) |
-| `huawei_analyze_cts_traces` | R3 | auto | Aggregates traces by user/time/operation dimensions |
-| `huawei_analyze_cts_retention` | R3 | auto | Evaluates 7-day default vs LTS vs OBS retention |
-| `huawei_create_cts_tracker` | R2 | preview+confirm | Validates OBS bucket first; creates tracker only after confirmation |
-| `huawei_create_cts_notification` | R2 | preview+confirm | Creates notification only after confirmation |
-| `huawei_delete_cts_tracker` | R1 | preview+confirm | Deletes data tracker only after confirmation; system tracker not deletable |
+| Action                            | Risk | Execution       | Acceptance                                                                 |
+| --------------------------------- | ---- | --------------- | -------------------------------------------------------------------------- |
+| `huawei_list_cts_trackers`        | R3   | auto            | `ListTrackers` returns tracker list JSON                                   |
+| `huawei_list_cts_traces`          | R3   | auto            | `ListTraces` returns traces filterable by from/to/user/service             |
+| `huawei_list_cts_operations`      | R3   | auto            | `ListOperations` returns operation list JSON                               |
+| `huawei_list_cts_notifications`   | R3   | auto            | `ListNotifications` returns notification list JSON                         |
+| `huawei_list_cts_trace_resources` | R3   | auto            | `ListTraceResources` returns resource list JSON (uses `--domain_id`)       |
+| `huawei_analyze_cts_traces`       | R3   | auto            | Aggregates traces by user/time/operation dimensions                        |
+| `huawei_analyze_cts_retention`    | R3   | auto            | Evaluates 7-day default vs LTS vs OBS retention                            |
+| `huawei_create_cts_tracker`       | R2   | preview+confirm | Validates OBS bucket first; creates tracker only after confirmation        |
+| `huawei_create_cts_notification`  | R2   | preview+confirm | Creates notification only after confirmation                               |
+| `huawei_delete_cts_tracker`       | R1   | preview+confirm | Deletes data tracker only after confirmation; system tracker not deletable |
 
 ## 3. Critical Warnings (must be preserved)
 

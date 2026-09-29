@@ -69,3 +69,4 @@ flowchart LR
     D -->|missing| F[Advise re-upload or fix task path]
     D -->|access denied| G[Check bucket policy + GetObject permission]
     B -->|other source| H[Advise checking the configured source]
+```

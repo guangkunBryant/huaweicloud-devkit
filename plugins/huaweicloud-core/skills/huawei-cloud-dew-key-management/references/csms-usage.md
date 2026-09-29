@@ -5,13 +5,13 @@ secret values are never fetched into agent context.**
 
 ## Action reference
 
-| huawei_* action | CLI command | Level |
-| --------------- | ----------- | ----- |
-| `huawei_list_csms_secrets` | `hcloud CSMS ListSecrets --cli-region={region}` | R3 auto |
-| `huawei_describe_csms_secret` | `hcloud CSMS ShowSecret --cli-region={region} --secret_name={name}` | R3 auto |
-| `huawei_list_csms_secret_versions` | `hcloud CSMS ListSecretVersions --cli-region={region} --secret_name={name}` | R3 auto |
+| huawei_* action                      | CLI command                                                                                                      | Level      |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ---------- |
+| `huawei_list_csms_secrets`           | `hcloud CSMS ListSecrets --cli-region={region}`                                                                  | R3 auto    |
+| `huawei_describe_csms_secret`        | `hcloud CSMS ShowSecret --cli-region={region} --secret_name={name}`                                              | R3 auto    |
+| `huawei_list_csms_secret_versions`   | `hcloud CSMS ListSecretVersions --cli-region={region} --secret_name={name}`                                      | R3 auto    |
 | `huawei_enable_csms_secret_rotation` | `hcloud CSMS UpdateSecret --cli-region={region} --secret_name={name} --auto_rotation=true --rotation_period=30d` | R2 confirm |
-| `huawei_update_csms_secret_version` | `hcloud CSMS RotateSecret --cli-region={region} --secret_name={name}` | R1 confirm |
+| `huawei_update_csms_secret_version`  | `hcloud CSMS RotateSecret --cli-region={region} --secret_name={name}`                                            | R1 confirm |
 
 ## Examples
 
@@ -89,16 +89,16 @@ data "huaweicloud_csms_secret" "db" {
 
 ## Policy rules
 
-| Operation | Policy |
-| --------- | ------ |
-| `hcloud CSMS ListSecrets` | **ALLOWED** (metadata only) |
-| `hcloud CSMS ShowSecret` | **ALLOWED** (metadata only) |
-| `hcloud CSMS ListSecretVersions` | **ALLOWED** (metadata only) |
-| `hcloud CSMS UpdateSecret` | ALLOWED (R2 preview + confirm) |
-| `hcloud CSMS RotateSecret` | ALLOWED (R1 preview + confirm) |
-| `hcloud CSMS DownloadSecretBlob` | **BLOCKED** — use runtime injection |
-| `hcloud CSMS ShowSecretVersion` (value field) | **BLOCKED** — never render secret values |
-| `hcloud CSMS CreateSecretReference` / value-based reads | **BLOCKED** |
+| Operation                                               | Policy                                   |
+| ------------------------------------------------------- | ---------------------------------------- |
+| `hcloud CSMS ListSecrets`                               | **ALLOWED** (metadata only)              |
+| `hcloud CSMS ShowSecret`                                | **ALLOWED** (metadata only)              |
+| `hcloud CSMS ListSecretVersions`                        | **ALLOWED** (metadata only)              |
+| `hcloud CSMS UpdateSecret`                              | ALLOWED (R2 preview + confirm)           |
+| `hcloud CSMS RotateSecret`                              | ALLOWED (R1 preview + confirm)           |
+| `hcloud CSMS DownloadSecretBlob`                        | **BLOCKED** — use runtime injection      |
+| `hcloud CSMS ShowSecretVersion` (value field)           | **BLOCKED** — never render secret values |
+| `hcloud CSMS CreateSecretReference` / value-based reads | **BLOCKED**                              |
 
 Endpoint (verified): `GET /v1/{project_id}/secrets`, `GET /v1/{project_id}/secrets/{secret_name}`,
 `GET /v1/{project_id}/secrets/{secret_name}/versions`,
