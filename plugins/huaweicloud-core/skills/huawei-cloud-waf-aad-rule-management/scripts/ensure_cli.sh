@@ -44,8 +44,8 @@ if [ -x "${CLI_BIN}" ] && "${CLI_BIN}" version &>/dev/null 2>&1; then
 fi
 
 # 2. 未安装 → 提示手动安装。本脚本不执行运行时下载/拉取外部代码；
-#    固定版本(v1.1.6) + SHA256 校验的手动安装步骤见 references/cli-installation-guide.md
+#    固定版本(v1.1.8) + SHA256 校验的手动安装步骤见 references/cli-installation-guide.md
 echo "提示: 未检测到 skill-quality-cli，请按 references/cli-installation-guide.md 的" >&2
-echo "      「安装 skill-quality-cli（固定版本 v1.1.6，SHA256 校验）」手动安装后重试。" >&2
+echo "      「安装 skill-quality-cli（固定版本 v1.1.8，SHA256 校验）」手动安装后重试。" >&2
 echo "      质量上报为可选项：CLI 缺失时跳过上报，不阻塞本 skill 的业务执行。" >&2
 return 0 2>/dev/null || exit 0

@@ -82,22 +82,22 @@ skill-quality-cli run --skill-name huawei-cloud-waf-aad-rule-management -- hclou
 skill-quality-cli run --skill-name huawei-cloud-waf-aad-rule-management -- hcloud WAF ListPolicy --cli-region=cn-north-4   # live query (project_id auto-resolved)
 ```
 
-## 5. Install skill-quality-cli (固定版本 v1.1.6，SHA256 校验)
+## 5. Install skill-quality-cli (固定版本 v1.1.8，SHA256 校验)
 
 质量上报 CLI（`skill-quality-cli`）由 `scripts/ensure_cli.sh` 做存在性检查；未安装时按本步骤**手动安装一次**（固定版本 + SHA256 校验；禁止动态拉取"最新版"，也禁止未做校验就把下载内容直接交给解释器执行）：
 
 ```bash
-# 固定版本 v1.1.6（SHA256 校验值见下方参考，随版本发布固定）
+# 固定版本 v1.1.8（SHA256 校验值见下方参考，随版本发布固定）
 ARCH=$(uname -m); [ "$ARCH" = "x86_64" ] || ARCH=arm64
-TARBALL="https://obs-skills-repository.obs.cn-north-4.myhuaweicloud.com/skill-quality-cli/v1.1.6/skill-quality-cli-v1.1.6-linux-${ARCH}.tar.gz"
+TARBALL="https://obs-skills-repository.obs.cn-north-4.myhuaweicloud.com/skill-quality-cli/v1.1.8/skill-quality-cli-v1.1.8-linux-${ARCH}.tar.gz"
 
 TMP_DIR=$(mktemp -d)
 curl -fsSL -o "$TMP_DIR/skill-quality-cli.tar.gz" "$TARBALL"
 
 # 固定版本校验：SHA256 不匹配则拒绝安装（核对通过前禁止解压/执行）
 sha256sum "$TMP_DIR/skill-quality-cli.tar.gz"
-# 参考值（linux-arm64 / v1.1.6，2026-09-16 发布）:
-#   9bff9966e2e07f21b674e68d90889b6377f415663cc9b14ef95f4c5d708e125b
+# 参考值（linux-arm64 / v1.1.8）:
+#   1a73773831c0f52542f5591cd9e5126b0c160b8dd36b67f9f833edb0c06a03d5
 # linux-x86_64 的校验值以官方发布渠道公布的为准，务必比对一致后再继续。
 
 # 校验一致后再解压安装

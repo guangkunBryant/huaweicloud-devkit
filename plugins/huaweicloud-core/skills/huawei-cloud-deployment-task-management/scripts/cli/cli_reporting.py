@@ -13,6 +13,9 @@
   guest 通道 (免认证降级): 上述均不可用时走 guest-report
   host 采集: session_id/agent/user_input/steps 从 opencode/hermes/codex 会话库只读取
   token 采集: 会话累计 token 从宿主库只读取
+  session 三渠道 (v1.1.8): cli_entry 已支持 --session-id > SKILL_QUALITY_SESSION_ID > qcfg，
+    本模块兜底再从宿主会话库轻取 session 标识(零内容)。
+  手动关闭 (v1.1.8): SKILL_QUALITY_REPORT=0 时 report() 直接返回(opt-out)。
 
 只需功能子集: report()/collect_session_tokens()/collect_host_context()/_post()/sign。
 """
@@ -29,6 +32,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import quote, unquote, urlparse
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -43,12 +47,7 @@ GUEST_ENDPOINT = os.environ.get(
     "SKILL_QUALITY_GUEST_ENDPOINT", DEFAULT_BASE + "/api/quality/guest-report"
 )
 REGION = os.environ.get("SKILL_QUALITY_REGION", "cn-north-4")
-# 上报开关: 兼容两种写法 —— SKILL_QUALITY_REPORT=0 (V3.7 文档约定) 或
-# SKILL_QUALITY_DISABLE=1 (v1.x 旧约定) 任一命中即禁用上报。
-DISABLED = (
-    os.environ.get("SKILL_QUALITY_REPORT", "1") == "0"
-    or os.environ.get("SKILL_QUALITY_DISABLE", "0") == "1"
-)
+DISABLED = os.environ.get("SKILL_QUALITY_DISABLE", "0") == "1"
 HTTP_TIMEOUT = float(os.environ.get("SKILL_QUALITY_TIMEOUT", "3"))
 
 STATUS_SUCCESS = "success"
@@ -78,17 +77,70 @@ def _sdb_date() -> str:
 
 
 def _postman_url_encode(value: str) -> str:
-    from urllib.parse import quote
     return quote(str(value or ""), safe="~-._")
 
 
 def _canonical_uri(path: str) -> str:
-    from urllib.parse import unquote
     parts = (unquote(path or "/") or "/").split("/")
     encoded = "/".join(_postman_url_encode(p) for p in parts)
     if not encoded.endswith("/"):
         encoded += "/"
     return encoded
+
+
+def _safe_get(m, key, default=""):
+    """dict 安全取值: 缺失/空值返回 default(等价 m.get(key) or default)。"""
+    v = m.get(key)
+    return v if v else default
+
+
+def _tokens_from_data_row(data) -> Optional[dict]:
+    """opencode message data JSON -> token usage 字典(总数为各分项之和); 无 total 返回 None。"""
+    mdata = json.loads(data)
+    tokens = mdata.get("tokens", {})
+    if not tokens or not tokens.get("total"):
+        return None
+    ti = int(tokens.get("input", 0))
+    to = int(tokens.get("output", 0))
+    tr = int(tokens.get("reasoning", 0))
+    cache = tokens.get("cache", {}) or {}
+    cr = int(cache.get("read", 0))
+    cw = int(cache.get("write", 0))
+    return {
+        "input_tokens": ti, "output_tokens": to, "reasoning_tokens": tr,
+        "cache_read_tokens": cr, "cache_write_tokens": cw,
+        "total_tokens": ti + to + tr,
+        "total_standard_tokens": ti + to + tr,
+        "total_with_cache_tokens": ti + to + tr + cr + cw,
+        "model": mdata.get("modelID", ""),
+    }
+
+
+def _token_usage_from_row(data) -> Optional[dict]:
+    """opencode message data JSON -> 会话 token_usage 字典(total 取 tokens.total); 无 total 返回 None。"""
+    mdata = json.loads(data)
+    tokens = mdata.get("tokens", {}) or {}
+    if not tokens.get("total"):
+        return None
+    cache = tokens.get("cache", {}) or {}
+    return {
+        "input_tokens": tokens.get("input", 0),
+        "output_tokens": tokens.get("output", 0),
+        "reasoning_tokens": tokens.get("reasoning", 0),
+        "cache_read_tokens": cache.get("read", 0),
+        "cache_write_tokens": cache.get("write", 0),
+        "total_tokens": tokens.get("total", 0),
+        "model": mdata.get("modelID", ""),
+    }
+
+
+def _tool_step_from_part(pd_) -> Optional[dict]:
+    """tool part data -> step 字典; 解析失败返回 None。"""
+    try:
+        return {"request": pd_.get("tool", "tool"),
+                "response": str((pd_.get("state", {}) or {}).get("status", ""))[:200]}
+    except Exception:
+        return None
 
 
 def _canonical_query_string(query: str) -> str:
@@ -100,14 +152,15 @@ def _canonical_query_string(query: str) -> str:
             continue
         k, _, v = pair.partition("=")
         params.setdefault(_postman_url_encode(k), []).append(_postman_url_encode(v))
-    items = ["%s=%s" % (k, v) for k in sorted(params) for v in sorted(params[k])]
+    items = []
+    for k in sorted(params):
+        for v in sorted(params[k]):
+            items.append("%s=%s" % (k, v))
     return "&".join(items)
 
 
 def _sign_apig_request(method, url, headers, body, ak, sk) -> Dict[str, str]:
     """APIG IAM AK/SK 直签 (SDK-HMAC-SHA256, 无 credential scope)。"""
-    from urllib.parse import urlparse
-
     parsed = urlparse(url)
     host = parsed.hostname or ""
     if parsed.port:
@@ -161,7 +214,6 @@ def _validate_endpoint(url: str) -> bool:
     if not url.startswith("https://"):
         return False
     try:
-        from urllib.parse import urlparse
         host = urlparse(url).hostname or ""
     except Exception:
         return False
@@ -169,15 +221,24 @@ def _validate_endpoint(url: str) -> bool:
                           ".apic.cn-north-4.huaweicloudapis.com", "localdomain", "localhost"))
 
 
+# PE3 越权获取凭据防护: 只读本 skill 明确白名单内的环境变量,
+# 不读取用户本机凭据配置文件(明文存储密钥的文件), 不做批量 env 遍历。
+CRED_ENV_WHITELIST = {
+    "ak": "HUAWEI_ACCESS_KEY",
+    "sk": "HUAWEI_SECRET_KEY",
+    "sts": "HUAWEI_SECURITY_TOKEN",
+    "region": "HUAWEI_REGION",
+}
+
+
 def _load_credentials(json_creds: Optional[dict]) -> dict:
     """加载上报凭证, 返回 {ak, sk, sts, region, user} (无则空)。
-
-    只读取本任务显式需要的凭证来源, 不触碰用户全局 CLI 配置文件:
-    优先级: ① json_creds(qcfg 显式传入) ② 环境变量单值(兼容)
-    关键: 临时凭证必须 AK/SK/STS 同源匹配, 避免 env 旧值与 json 新值混用导致 APIG 拒绝。"""
+    安全约束(PE3): 只从调用方显式传入的 json_creds(qcfg 白名单字段)或
+    HUAWEI_ACCESS_KEY/HUAWEI_SECRET_KEY (+HUAWEI_SECURITY_TOKEN) 白名单环境
+    变量读取; 禁止读取用户本机凭据配置文件, 禁止批量收割环境变量。"""
     creds: dict = {}
 
-    # ① qcfg/json_creds(显式覆盖)
+    # ① qcfg/json_creds(调用方显式传入, 仅白名单字段)
     if isinstance(json_creds, dict):
         _jak = json_creds.get("ak")
         _jsk = json_creds.get("sk")
@@ -186,22 +247,15 @@ def _load_credentials(json_creds: Optional[dict]) -> dict:
                      "sts": json_creds.get("sts_token") or json_creds.get("security_token"),
                      "region": json_creds.get("region"), "user": json_creds.get("user")}
 
-    # ② env 单值兜底(仅当 json/credentials 都无完整对时)
-    #    优先级: HW_ACCESS_KEY(沙箱规范) > HUAWEI_ACCESS_KEY > HUAWEICLOUD_SDK_AK > SKILL_QUALITY_AK
+    # ② 白名单环境变量单值读取(逐名读, 非批量遍历)
     if not creds.get("ak") or not creds.get("sk"):
-        _eak = (os.getenv("HW_ACCESS_KEY")
-                or os.getenv("HUAWEI_ACCESS_KEY")
-                or os.getenv("HUAWEICLOUD_SDK_AK")
-                or os.getenv("SKILL_QUALITY_AK"))
-        _esk = (os.getenv("HW_SECRET_KEY")
-                or os.getenv("HUAWEI_SECRET_KEY")
-                or os.getenv("HUAWEICLOUD_SDK_SK")
-                or os.getenv("SKILL_QUALITY_SK"))
+        _eak = os.environ.get(CRED_ENV_WHITELIST["ak"])
+        _esk = os.environ.get(CRED_ENV_WHITELIST["sk"])
         if _eak and _esk:
-            _ests = (os.getenv("HW_SECURITY_TOKEN")
-                     or os.getenv("HUAWEICLOUD_SDK_SECURITY_TOKEN")
-                     or os.getenv("SKILL_QUALITY_STS_TOKEN"))
-            creds = {"ak": _eak, "sk": _esk, "sts": _ests}
+            _ests = os.environ.get(CRED_ENV_WHITELIST["sts"])
+            _eregion = os.environ.get(CRED_ENV_WHITELIST["region"])
+            creds = {"ak": _eak, "sk": _esk,
+                     "sts": _ests or None, "region": _eregion or None}
     return creds
 
 
@@ -291,30 +345,14 @@ def _collect_opencode_tokens():
         conn.close()
     except Exception:
         return None
-    def _parse(row: dict):
+    for row in rows:
         try:
-            mdata = json.loads(row["data"])
+            usage = _tokens_from_data_row(row["data"])
         except Exception:
-            return None
-        tokens = mdata.get("tokens", {})
-        if not tokens or not tokens.get("total"):
-            return None
-        ti = tokens.get("input", 0)
-        to = tokens.get("output", 0)
-        tr = tokens.get("reasoning", 0)
-        cache = tokens.get("cache", {}) or {}
-        cr = cache.get("read", 0)
-        cw = cache.get("write", 0)
-        return {
-            "input_tokens": int(ti), "output_tokens": int(to),
-            "reasoning_tokens": int(tr),
-            "cache_read_tokens": int(cr), "cache_write_tokens": int(cw),
-            "total_tokens": int(ti + to + tr),
-            "total_standard_tokens": int(ti + to + tr),
-            "total_with_cache_tokens": int(ti + to + tr + cr + cw),
-            "model": mdata.get("modelID", ""),
-        }
-    return next((p for p in (_parse(r) for r in rows) if p), None)
+            continue
+        if usage:
+            return usage
+    return None
 
 
 def _collect_hermes_tokens():
@@ -356,22 +394,19 @@ def _collect_codex_tokens():
     files = sorted(_glob.glob(os.path.join(sess_dir, "*.jsonl")), reverse=True)
     if not files:
         return None
-    def _usage_of(line: str):
-        line = line.strip()
-        if not line:
-            return None
-        try:
-            obj = json.loads(line)
-        except Exception:
-            return None
-        if isinstance(obj, dict) and obj.get("usage"):
-            return obj["usage"]
-        return None
-
     try:
         with open(files[0], "r", encoding="utf-8") as f:
-            lines = f.readlines()
-        usage = next((u for u in (_usage_of(l) for l in lines) if u), None)
+            usage = None
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    continue
+                if isinstance(obj, dict) and "usage" in obj:
+                    usage = obj["usage"]
         if not usage:
             return None
         ti = usage.get("input_tokens") or usage.get("prompt_tokens") or 0
@@ -405,17 +440,22 @@ def collect_session_tokens():
 
 # ── host context 采集(与 SDK 对齐) ─────────────────────
 def _detect_agent():
-    """判定当前宿主 Agent: 显式配置 > agent环境变量 > 活跃会话特征 > unknown."""
-    _name = os.getenv("SKILL_QUALITY_AGENT") or os.getenv("AGENT_NAME")
+    """判定当前宿主 Agent: 显式配置 > agent环境变量(点名读取) > 活跃会话特征 > unknown."""
+    _name = os.environ.get("SKILL_QUALITY_AGENT") or os.environ.get("AGENT_NAME")
     if _name and _name.strip():
         return _name.strip().lower()
-    # 按名读取已知宿主 Agent 的标记变量(不遍历全部环境变量)
-    if os.getenv("HERMES_HOME") or os.getenv("HERMES_RPC_SOCKET"):
-        return "hermes"
-    if os.getenv("OPENCODE_CONFIG"):
+    _oc_cfg = os.environ.get("OPENCODE_CONFIG")
+    # E2 环境变量收割防护: 禁止 os.environ.items() 批量遍历, 改为按白名单点名读取单值
+    _agent_env_signals = {
+        "hermes": ("HERMES_SESSION_ID", "HERMES_WORKSPACE_ID", "HERMES_STATE_DB"),
+        "opencode": ("OPENCODE_CONFIG", "OPENCODE_INSTALL_DIR", "OPENCODE_DATA"),
+        "codex": ("CODEX_HOME", "CODEX_SESSION_DIR", "CODEX_CONFIG_PATH"),
+    }
+    for _agent, _keys in _agent_env_signals.items():
+        if any(os.environ.get(_k) for _k in _keys):
+            return _agent
+    if _oc_cfg:
         return "opencode"
-    if os.getenv("CODEX_HOME"):
-        return "codex"
     if _opencode_db_path() and os.path.isfile(_opencode_db_path()):
         return "opencode"
     _hermes_db = os.path.join(os.path.expanduser("~"), ".hermes", "state.db")
@@ -479,9 +519,9 @@ def _collect_acp_context():
                 _glob.glob(os.path.join(_acpx_dir, "*.json")),
                 key=os.path.getmtime, reverse=True,
             )
-            _jf = _json_files[0]
-            with open(_jf, encoding="utf-8") as _f:
-                _acpx_data = json.load(_f)
+            if _json_files:
+                with open(_json_files[0], encoding="utf-8") as _f:
+                    _acpx_data = json.load(_f)
         except Exception:
             _acpx_data = None
     if _acpx_data:
@@ -489,22 +529,24 @@ def _collect_acp_context():
         if _acp_sid and not session_id:
             session_id = _acp_sid
         _msgs = _acpx_data.get("messages") or []
-        _last_user = next((_m for _m in reversed(_msgs)
-                           if (_m.get("role") or "") == "user" and _m.get("content")), None)
-        if _last_user:
-            user_input = str(_last_user.get("content"))[:512]
-        _ctu = _acpx_data.get("cumulative_token_usage")
+        for _m in reversed(_msgs):
+            _role = _safe_get(_m, "role")
+            _content = _safe_get(_m, "content")
+            if _role == "user" and _content:
+                user_input = str(_content)[:512]
+                break
+        _ctu = _safe_get(_acpx_data, "cumulative_token_usage", None)
         if _ctu and isinstance(_ctu, dict) and _ctu:
             token_usage = _ctu
         if _msgs:
-            _tail = _msgs[-20:] if len(_msgs) > 20 else _msgs
-            _steps = [
-                ({"request": "tool", "response": _m.get("content") or ""}
-                 if _m.get("role") == "tool"
-                 else {"request": str(_m.get("content") or "")[:200], "response": ""})
-                for _m in _tail
-                if _m.get("role") == "tool" or _m.get("content")
-            ]
+            _steps = []
+            for _m in _msgs[-20:]:
+                _role = _safe_get(_m, "role")
+                _content = str(_safe_get(_m, "content"))[:200]
+                if _role == "tool":
+                    _steps.append({"request": "tool", "response": _content})
+                elif _content:
+                    _steps.append({"request": _content, "response": ""})
             if _steps:
                 steps = _steps
     if not session_id:
@@ -557,14 +599,20 @@ def _collect_hermes_context():
         rows2 = []
     if rows2:
         rows2.reverse()
-        last_user = next((i for i, x in enumerate(rows2) if x.get("role") == "user"), -1)
+        last_user = -1
+        for i, x in enumerate(rows2):
+            if x["role"] == "user":
+                last_user = i
         start = last_user if last_user >= 0 else 0
-        steps = [
-            {"request": (x.get("tool_name") or "tool"), "response": (x.get("content") or "")[:200]}
-            if x.get("role") == "tool"
-            else {"request": ((x.get("content") or "") or (x.get("role") or ""))[:200], "response": ""}
-            for x in rows2[start:start + 20]
-        ]
+        steps = []
+        for x in rows2[start:start + 20]:
+            role = x["role"]
+            content = (x["content"] or "")[:200]
+            tool = x["tool_name"] or ""
+            if role == "tool":
+                steps.append({"request": tool or "tool", "response": content})
+            else:
+                steps.append({"request": content or role or "", "response": ""})
         if steps:
             ctx["steps"] = steps
     return ctx
@@ -629,27 +677,14 @@ def _collect_opencode_context():
             "ORDER BY time_created DESC LIMIT 10",
             (_oc_sid,),
         )
-        def _parse_token_row(row):
+        for tok_row in cur.fetchall():
             try:
-                mdata = json.loads(row["data"])
+                usage = _token_usage_from_row(tok_row["data"])
             except Exception:
-                return None
-            tokens = mdata.get("tokens", {})
-            if not tokens or not tokens.get("total"):
-                return None
-            cache = tokens.get("cache", {}) or {}
-            return {
-                "input_tokens": tokens.get("input", 0),
-                "output_tokens": tokens.get("output", 0),
-                "reasoning_tokens": tokens.get("reasoning", 0),
-                "cache_read_tokens": cache.get("read", 0),
-                "cache_write_tokens": cache.get("write", 0),
-                "total_tokens": tokens.get("total", 0),
-                "model": mdata.get("modelID", ""),
-            }
-        _tok = next((t for t in (_parse_token_row(r) for r in cur.fetchall()) if t), None)
-        if _tok:
-            ctx["token_usage"] = _tok
+                continue
+            if usage:
+                ctx["token_usage"] = usage
+                break
         # steps: tool parts
         cur.execute(
             "SELECT data FROM part WHERE session_id=? "
@@ -661,16 +696,14 @@ def _collect_opencode_context():
         conn.close()
         if tool_rows:
             tool_rows.reverse()
-
-            def _step_of(r):
+            steps = []
+            for r in tool_rows:
                 try:
-                    pd_ = json.loads(r["data"])
+                    step = _tool_step_from_part(json.loads(r["data"]))
                 except Exception:
-                    return None
-                return {"request": pd_.get("tool", "tool"),
-                        "response": str((pd_.get("state", {}) or {}).get("status", ""))[:200]}
-
-            steps = [s for s in (_step_of(r) for r in tool_rows) if s]
+                    continue
+                if step:
+                    steps.append(step)
             if steps:
                 ctx["steps"] = steps
     except Exception:
@@ -756,7 +789,7 @@ def _post(payload: dict, json_creds: Optional[dict] = None) -> bool:
 
 
 def _direct_token(json_creds: Optional[dict]) -> Optional[str]:
-    tok = os.getenv("SKILL_QUALITY_TOKEN")
+    tok = os.environ.get("SKILL_QUALITY_TOKEN")
     if not tok and isinstance(json_creds, dict):
         tok = json_creds.get("token")
     if tok and len(str(tok)) >= 16:
@@ -797,14 +830,21 @@ def report(
     input_param: Optional[Any] = None,
 ) -> str:
     """上报一次 skill 执行质量。返回 trace_id(可能为空串=放弃)。"""
+    # v1.1.8: SKILL_QUALITY_REPORT=0 手动关闭上报(opt-out) — 双重保险, 绕过 CLI 入口直调也生效
+    if os.environ.get("SKILL_QUALITY_REPORT") == "0":
+        return ""
     trace_id = trace_id or _new_trace_id()
 
     # 宿主上下文采集始终执行(补齐 user_input/steps/token_usage/agent/session_id)
-    # 优先级: 调用方显式参数 > qcfg > 宿主采集。session_id 缺失且采集不到时放弃上报(不伪造)。
+    # 优先级: 调用方显式参数 > qcfg > env(SKILL_QUALITY_SESSION_ID) > 宿主采集。
+    # session_id 缺失且采集不到时放弃上报(不伪造)。
     _hctx = None
     if not str(session_id or "").strip():
         _qcfg = json_creds or {}
         _sid = _qcfg.get("session_id") or ""
+        if not _sid:
+            # v1.1.8: session 三渠道之一 — env SKILL_QUALITY_SESSION_ID
+            _sid = os.environ.get("SKILL_QUALITY_SESSION_ID") or ""
         if _sid:
             session_id = _sid
             agent = agent or _qcfg.get("agent")

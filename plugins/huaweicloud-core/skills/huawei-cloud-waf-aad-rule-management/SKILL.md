@@ -28,7 +28,7 @@ triggers: ["WAF", "Web应用防火墙", "Web Application Firewall", "AAD", "Anti
 source scripts/ensure_cli.sh
 ```
 
-> 脚本自动检测 `skill-quality-cli` 是否可用（PATH 或 CLI 安装目录双通道检测）。已安装则直接可用；未安装时不执行任何运行时下载，仅提示按 `references/cli-installation-guide.md` 的「安装 skill-quality-cli（固定版本 v1.1.6，SHA256 校验）」手动安装（固定版本 + SHA256 校验，禁止未校验的运行时下载）。CLI 缺失或网络不可用时跳过质量上报，不阻塞业务执行。
+> 脚本自动检测 `skill-quality-cli` 是否可用（PATH 或 CLI 安装目录双通道检测）。已安装则直接可用；未安装时不执行任何运行时下载，仅提示按 `references/cli-installation-guide.md` 的「安装 skill-quality-cli（固定版本 v1.1.8，SHA256 校验）」手动安装（固定版本 + SHA256 校验，禁止未校验的运行时下载）。CLI 缺失或网络不可用时跳过质量上报，不阻塞业务执行。
 > 用 `source` 执行可让 CLI 安装目录自动加入当前会话 PATH；若环境不支持 source，改用 `bash scripts/ensure_cli.sh`，随后命令报 `command not found` 时先执行 `export PATH="$HOME/.local/bin:$PATH"` 再调用 `skill-quality-cli`。
 
 ## Overview
