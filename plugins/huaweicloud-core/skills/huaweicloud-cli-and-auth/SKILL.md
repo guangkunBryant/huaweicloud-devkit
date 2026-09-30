@@ -65,7 +65,14 @@ One-liner (installs `latest`, may drift from v7.2.12):
 curl -sSL https://cn-north-4-hdn-koocli.obs.cn-north-4.myhuaweicloud.com/cli/latest/hcloud_install.sh -o ./hcloud_install.sh && bash ./hcloud_install.sh -y
 ```
 
-Agent processes find executables through `PATH`. If OpenCode/Codex cannot find `hcloud`, restart after updating `PATH`, or set `HCLOUD_BIN`.
+**No restart needed after install**: DevKit locates `hcloud` dynamically on every
+call — it checks `HCLOUD_BIN`, then the fixed install dirs (`~/.local/bin/hcloud`
+on Linux, `/usr/local/bin/hcloud` on macOS, `~/hcloud/hcloud.exe` on Windows),
+then PATH. Once `install-hcloud` or the background auto-install writes the binary
+to one of those dirs, the very next `check_cli` / `run_*` call uses it. Do not
+tell users to restart the agent.
+
+Agent processes find executables through `PATH`; `HCLOUD_BIN` overrides it. DevKit re-locates hcloud from its **fixed install dirs** on every call, so a freshly installed binary (`~/.local/bin` on Linux, `/usr/local/bin` on macOS, `~/hcloud` on Windows) or a re-set `HCLOUD_BIN` is picked up by the next `check_cli` / `run_*` call without restarting the agent. A custom `PATH` entry is only honored via `HCLOUD_BIN` or the PATH locator fallback, and shell `PATH` changes take effect only for processes started after the update.
 
 ## Configure Credentials Outside Chat
 
