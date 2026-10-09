@@ -1,0 +1,33 @@
+name: Regen lockfile
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  regen:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: issue/1-meta-skill-length
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Update vulnerable dependencies in lockfile
+        run: npm update undici brace-expansion smol-toml --package-lock-only --ignore-scripts
+      - name: Verify audit gate before committing
+        run: |
+          npm ci --ignore-scripts
+          npm audit --audit-level=high --json > npm-audit.json || true
+          node scripts/audit-allowlist.mjs
+      - name: Commit and push lockfile
+        run: |
+          git config user.name "lockfile-bot"
+          git config user.email "noreply@github.com"
+          git add package-lock.json
+          git diff --cached --quiet || git commit -m "chore: update lockfile for security advisories (undici, brace-expansion, smol-toml override) (#1)"
+          git push
