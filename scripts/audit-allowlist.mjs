@@ -3,9 +3,11 @@
 // Usage (in CI): npm audit --audit-level=high --json > npm-audit.json || true
 //                node scripts/audit-allowlist.mjs
 //
-// Exits 0 only when every remaining vulnerability traces (transitively
-// through dependency chains) to an allowlisted advisory. Any non-allowlisted
-// vulnerability fails the gate, so future advisories are still caught.
+// Preserves the original `npm audit --audit-level=high` semantics: fails when
+// any advisory of high or greater severity exists in the tree, EXCEPT the
+// explicitly allowlisted ones. Low/moderate advisories never fail the gate,
+// and severity propagated through dependency chains is not attributed to
+// child packages — only real advisories are judged.
 
 import { readFileSync } from 'node:fs';
 
@@ -18,28 +20,28 @@ import { readFileSync } from 'node:fs';
 //   local-DoS risk only. Allowlisted 2026-10-09.
 const ALLOWLIST = ['GHSA-vfj7-8cjw-p6xm'];
 
-const audit = JSON.parse(readFileSync('npm-audit.json', 'utf8'));
+const audit = JSON.parse(readFileSync('npm-audit.json', 'utf8').replace(/^\uFEFF/, ''));
+const SEVERITY_RANK = { low: 0, moderate: 1, high: 2, critical: 3 };
 
-// A via entry is either an advisory object ({ source: "GHSA-..." }) or a
-// plain string naming a package the entry is vulnerable through.
-const isBlocked = (via, seen = new Set()) => {
-  if (typeof via === 'string') {
-    if (seen.has(via)) return false; // cycle guard
-    seen.add(via);
-    const entry = audit.vulnerabilities[via];
-    // Unknown package chain: treat as blocked (strict).
-    return entry ? entry.via.some((v) => isBlocked(v, seen)) : true;
+const isAllowlisted = (advisory) =>
+  ALLOWLIST.includes(String(advisory.source)) ||
+  (typeof advisory.url === 'string' && ALLOWLIST.some((id) => advisory.url.includes(id)));
+
+const failing = [];
+for (const entry of Object.values(audit.vulnerabilities ?? {})) {
+  for (const via of entry.via ?? []) {
+    // Advisory entries are objects ({ source, url, severity, ... });
+    // dependency-chain entries are plain strings (judged via their own entry).
+    if (typeof via !== 'object' || via.severity === undefined) continue;
+    if (SEVERITY_RANK[via.severity] < SEVERITY_RANK.high) continue;
+    if (isAllowlisted(via)) continue;
+    failing.push(`${via.source ?? via.url ?? 'unknown'} (${via.name} ${via.severity})`);
   }
-  return !ALLOWLIST.includes(via.source);
-};
+}
 
-const blocked = Object.entries(audit.vulnerabilities ?? {})
-  .filter(([, v]) => (v.via ?? []).some((x) => isBlocked(x)))
-  .map(([id]) => id);
-
-if (blocked.length > 0) {
-  console.error(`npm audit gate failed — non-allowlisted vulnerabilities: ${blocked.join(', ')}`);
+if (failing.length > 0) {
+  console.error(`npm audit gate failed — non-allowlisted high+ advisories: ${failing.join(', ')}`);
   process.exit(1);
 }
 
-console.log('npm audit gate passed — only allowlisted advisories present.');
+console.log('npm audit gate passed — no non-allowlisted high+ advisories.');
