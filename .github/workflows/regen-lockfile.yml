@@ -4,10 +4,10 @@ on:
   push:
     branches: [issue/1-meta-skill-length]
     paths:
-      - "package.json"
-      - "package-lock.json"
-      - "scripts/audit-allowlist.mjs"
-      - ".github/workflows/regen-lockfile.yml"
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/audit-allowlist.mjs'
+      - '.github/workflows/regen-lockfile.yml'
 
 permissions:
   contents: write
