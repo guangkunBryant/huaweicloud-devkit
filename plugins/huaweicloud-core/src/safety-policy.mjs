@@ -394,7 +394,13 @@ function splitSimpleCommand(command) {
   return (
     String(command)
       .match(/"[^"]*"|'[^']*'|\S+/g)
-      ?.map((part) => part.replace(/^['"]|['"]$/g, '')) || []
+      // Strip ALL quote characters (not just the outer pair): POSIX shells
+      // remove quotes before executing, so an embedded-quote form like
+      // `hcloud ECS De'leteServer …` actually runs `DeleteServer`. Stripping
+      // only outer quotes left `De'leteServer` in the token and let the write/
+      // secret/execution matchers miss it (#927). This hcloud classification
+      // path only — credential-var lookbehind still sees raw text with quotes.
+      .map((part) => part.replace(/['"]/g, '')) || []
   );
 }
 
@@ -480,7 +486,11 @@ export function extractInnerCommand(text, depth = 0) {
 // `sudo hcloud …` is treated as a real command, not documentation (#760 P0).
 function extractHcloudSubcommand(text) {
   const t = String(text || '');
-  const match = /(?:^|[;|&]\s*|\$\(\s*|`\s*|sudo\s+)(hcloud(?:\.exe)?\b)/i.exec(t);
+  // `m` flag + newline in the separator class: a hcloud command at the start
+  // of any line (not just the first) must be located and fully classified —
+  // previously `echo hello\nhcloud ECS DeleteServer …` fell through as
+  // not_huaweicloud allow (#927).
+  const match = /(?:^|[;|&]\s*|\$\(\s*|`\s*|sudo\s+|\r?\n\s*)(hcloud(?:\.exe)?\b)/im.exec(t);
   if (!match) return null;
   const hcloudIndex = match.index + match[0].length - match[1].length;
   return t.slice(hcloudIndex);
