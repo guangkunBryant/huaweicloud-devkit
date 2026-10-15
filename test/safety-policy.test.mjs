@@ -587,6 +587,48 @@ test('classifyTextCommand keeps quoted hcloud decisions no looser than de-quoted
   }
 });
 
+test('classifyTextCommand detects keyword-embedded quote hcloud bypasses (#927 B1)', () => {
+  // POSIX shells strip quotes before execution, so `hc'loud` runs `hcloud`.
+  // The hcloud keyword locator in extractHcloudSubcommand previously matched
+  // only the literal keyword on raw text (after splitSimpleCommand's quote
+  // stripping), so these forms fell through as not_huaweicloud (allow) while
+  // their de-quoted forms are DENY. The locator now retries on a
+  // quote-stripped COPY used only for keyword location, so the forms below
+  // enter the full hcloud classification path and follow de-quoted semantics.
+  const keywordQuoteBypasses = [
+    { cmd: "hc'loud ECS DeleteServer --server_id=i-123", risk: 'write' },
+    { cmd: "h'cloud ECS DeleteServer --server_id=i-123", risk: 'write' },
+    { cmd: "hc'loud DEW ShowSecretVersion --secret_name=kms-cred", risk: 'secret' },
+  ];
+  for (const { cmd, risk } of keywordQuoteBypasses) {
+    const result = classifyTextCommand(cmd);
+    assert.equal(result.decision, 'deny', cmd);
+    assert.equal(result.risk, risk, cmd);
+  }
+  // Equivalence invariant: keyword-embedded-quote decisions must not be more
+  // permissive than the decision for the de-quoted form.
+  const equivalents = [
+    ["hc'loud ECS DeleteServer --server_id=i-123", 'hcloud ECS DeleteServer --server_id=i-123'],
+    ["h'cloud ECS DeleteServer --server_id=i-123", 'hcloud ECS DeleteServer --server_id=i-123'],
+    ["hc'loud DEW ShowSecretVersion --secret_name=kms-cred", 'hcloud DEW ShowSecretVersion --secret_name=kms-cred'],
+  ];
+  for (const [quoted, bare] of equivalents) {
+    const quotedResult = classifyTextCommand(quoted);
+    const bareResult = classifyTextCommand(bare);
+    assert.equal(bareResult.decision, 'deny', bare);
+    assert.equal(quotedResult.decision, 'deny', `${quoted} must stay as strict as ${bare}`);
+  }
+  // The sudo variant locates through the quotes via the same sudo\s+ anchor.
+  const sudoVariant = classifyTextCommand("sudo h'cloud ECS DeleteServer --server_id=i-1");
+  assert.equal(sudoVariant.decision, 'deny');
+  assert.equal(sudoVariant.risk, 'write');
+
+  // Natural-language / echo hcloud mentions keep their allow — the fallback
+  // uses the same anchored pattern, so no new false positives (#758 D4-11 P1).
+  assert.equal(classifyTextCommand('see hcloud docs').decision, 'allow');
+  assert.equal(classifyTextCommand('echo hcloud is a CLI').decision, 'allow');
+});
+
 test('classifyTextCommand detects hcloud commands at any line start (#927)', () => {
   // extractHcloudSubcommand used `^` without the `m` flag and no newline in
   // the separator class, so a hcloud command on a non-first line with no
@@ -615,6 +657,9 @@ test('hcloud classification quote normalization preserves existing exemptions (#
   assert.equal(classifyTextCommand("echo '$HW_SECRET_KEY'").decision, 'allow');
   assert.equal(classifyTextCommand('echo \\$HW_SECRET_KEY').decision, 'allow');
   assert.equal(classifyTextCommand("echo '$HUAWEICLOUD_SECRET_ACCESS_KEY'").decision, 'allow');
+  // Backslash-escaped HUAWEICLOUD literal stays exempt too — same lookbehind
+  // path as the $HW_ backslash case above.
+  assert.equal(classifyTextCommand('echo \\$HUAWEICLOUD_SECRET_ACCESS_KEY').decision, 'allow');
 
   // Natural-language / echo hcloud mentions stay allowed (#758 D4-11 P1).
   assert.equal(classifyTextCommand('see hcloud docs').decision, 'allow');
