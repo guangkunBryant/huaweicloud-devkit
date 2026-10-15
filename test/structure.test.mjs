@@ -249,9 +249,15 @@ test('web/static-site deployment intent offers target options with sandbox first
   for (const { name, body, sectionMarker, order } of optionGates) {
     const start = body.indexOf(sectionMarker);
     assert.ok(start !== -1, `${name}: mandatory deployment-target gate section missing`);
-    const section = body.slice(start);
+    // Scope the guard to the gate section only (from the section title up to
+    // the next `## ` heading). EIP/域名 trigger words elsewhere in the file
+    // (e.g. Cross-Skill References, other hard rules) must not mask a missing
+    // reminder inside the gate section itself.
+    const nextHeading = body.indexOf('\n## ', start + sectionMarker.length);
+    const section = nextHeading === -1 ? body.slice(start) : body.slice(start, nextHeading);
     assert.match(section, /MUST present/, `${name}: gate must use MUST-present wording`);
     assert.match(section, /`question` tool/, `${name}: gate must mandate the question tool`);
+    assert.match(section, /NEVER infer or default/, `${name}: gate must carry the NEVER infer or default hard rule`);
     let pos = -1;
     for (const option of order) {
       const idx = section.indexOf(option, pos + 1);
