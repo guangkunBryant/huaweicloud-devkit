@@ -272,3 +272,71 @@ test('runHcloud strips the KooCLI update banner from command output (#935 A4)', 
     (await import('node:fs')).rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// E2E-B1 (#935 round 2): explain_error errorCode-only routing gap
+// ---------------------------------------------------------------------------
+
+test('explain_error with errorCode only (no service) hits Ecs.0019 mapping (#935 E2E-B1)', async () => {
+  // MCP probe evidence: errorCode-only call returned "No known error-code
+  // pattern matched", service: unknown — the service-keyed table was never hit.
+  const result = await callTool('huaweicloud_explain_error', { errorCode: 'Ecs.0019' });
+  const text = JSON.stringify(result);
+  assert.match(text, /Ecs\.0019/);
+  assert.match(text, /taken offline/, 'must hit the Ecs.0019 flavor-offline mapping');
+  assert.match(text, /ListFlavors/, 'must direct at hcloud ECS ListFlavors');
+});
+
+test('explain_error with errorCode only (no service) hits Ecs.0319 mapping (#935 E2E-B1)', async () => {
+  const result = await callTool('huaweicloud_explain_error', { errorCode: 'Ecs.0319' });
+  const text = JSON.stringify(result);
+  assert.match(text, /Ecs\.0319/);
+  assert.match(text, /availability zone/i, 'must hit the Ecs.0319 AZ-capacity mapping');
+});
+
+test('explain_error with errorCode only (no service) hits Ecs.0067 mapping (#935 E2E-B1)', async () => {
+  const result = await callTool('huaweicloud_explain_error', { errorCode: 'Ecs.0067' });
+  const text = JSON.stringify(result);
+  assert.match(text, /Ecs\.0067/);
+  assert.match(text, /ShowCustomerAccountBalances/, 'must hit the Ecs.0067 cash-balance mapping');
+});
+
+test('explain_error with errorCode only (no service) hits KPS.9004 mapping (#935 E2E-B1)', async () => {
+  const result = await callTool('huaweicloud_explain_error', { errorCode: 'KPS.9004' });
+  const text = JSON.stringify(result);
+  assert.match(text, /KPS\.9004/);
+  assert.match(text, /ShowCustomerAccountBalances/, 'must hit the KPS.9004 restriction mapping');
+});
+
+test('explain_error with errorCode only (no service) hits existing Ecs.0707 mapping (#935 E2E-B1)', async () => {
+  const result = await callTool('huaweicloud_explain_error', { errorCode: 'Ecs.0707' });
+  const text = JSON.stringify(result);
+  assert.match(text, /Ecs\.0707/);
+  assert.match(text, /flavors\.md/, 'must hit the pre-existing Ecs.0707 mapping');
+});
+
+test('explain_error with service=unknown + dotted errorCode hits the mapping (MCP-equivalent shape) (#935 E2E-B1)', async () => {
+  const result = await callTool('huaweicloud_explain_error', { service: 'unknown', errorCode: 'Ecs.0019' });
+  const text = JSON.stringify(result);
+  assert.match(text, /Ecs\.0019/);
+  assert.match(text, /taken offline/, 'service:unknown + dotted code must derive the service key');
+});
+
+test('explain_error with explicit service=ECS keeps behavior unchanged (#935 E2E-B1 regression)', async () => {
+  const result = await callTool('huaweicloud_explain_error', {
+    service: 'ECS',
+    errorCode: 'Ecs.0019',
+    message: 'the flavor does not exist',
+  });
+  assert.equal(result.service, 'ECS', 'the echoed service field must stay as passed');
+  const text = JSON.stringify(result);
+  assert.match(text, /Ecs\.0019/);
+  assert.match(text, /taken offline/, 'explicit-service mapping hit must be preserved');
+});
+
+test('explain_error with dot-less errorCode and no service keeps the fallback behavior (#935 E2E-B1)', async () => {
+  const result = await callTool('huaweicloud_explain_error', { errorCode: '0019' });
+  const text = JSON.stringify(result);
+  assert.match(text, /No known error-code pattern matched/, 'dot-less code must not be mis-routed');
+  assert.ok(!text.includes('taken offline'), 'must not hit the Ecs.0019 mapping');
+});

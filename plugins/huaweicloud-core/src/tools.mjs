@@ -2282,7 +2282,15 @@ function explainError({ service = 'unknown', errorCode = '', message = '', reque
     kps: 'Kps',
     KPS: 'Kps',
   };
-  const patternKey = SERVICE_ALIASES[svc] || service;
+  // #935 E2E-B1: real MCP calls pass only errorCode (e.g. Ecs.0019, KPS.9004)
+  // with no service — derive the service key from the dotted-code prefix so the
+  // service-keyed mapping table is hit. Explicit service behavior is unchanged.
+  let resolvedService = service;
+  if ((!service || svc === 'unknown') && /^[A-Za-z]+\.\w+/.test(errorCode)) {
+    const prefix = errorCode.split('.')[0].toLowerCase();
+    resolvedService = SERVICE_ALIASES[prefix] || errorCode.split('.')[0].toUpperCase();
+  }
+  const patternKey = SERVICE_ALIASES[svc] || resolvedService;
 
   const hwErrorPatterns = {
     OBS: {
