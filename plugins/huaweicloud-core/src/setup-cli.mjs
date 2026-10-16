@@ -4898,7 +4898,11 @@ function resetHcloudProfile() {
 // `hcloud STS GetCallerIdentity` and only report synchronized when it passes.
 function verifyHcloudIdentity(region) {
   const hcloudBin = findHcloudBin() || process.env.HCLOUD_BIN || 'hcloud';
-  const r = spawnSync(hcloudBin, ['STS', 'GetCallerIdentity', `--cli-region=${region || ''}`], {
+  // #922 (S2): an empty region must be omitted entirely — `--cli-region=`
+  // sends a literal empty value that KooCLI rejects as an invalid region.
+  const args = ['STS', 'GetCallerIdentity'];
+  if (region) args.push(`--cli-region=${region}`);
+  const r = spawnSync(hcloudBin, args, {
     shell: false,
     windowsHide: true,
     stdio: 'pipe',

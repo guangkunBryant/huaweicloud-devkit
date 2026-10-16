@@ -19,6 +19,7 @@ import {
   buildDevbridgeExposeScript,
   parseDevbridgeExposeOutput,
   buildDevbridgeVerifyScript,
+  parseDevbridgeVerifyOutput,
   DEVBRIDGE_HOST_EXPIRY_HOURS,
   validateTunnelPort,
 } from '../plugins/huaweicloud-core/src/sandbox/session-manager.mjs';
@@ -242,7 +243,9 @@ test('919: buildDevbridgeExposeScript starts a session-surviving host on the cal
   // in-session check (#919 "假成功").
   assert.match(script, /setsid nohup devbridge host -p 8081 -e 72/);
   assert.match(script, /< \/dev\/null/);
-  assert.match(script, /&\ndisown/);
+  assert.match(script, /& fi\ndisown 2>\/dev\/null \|\| true/);
+  // #922 (S8): bare-nohup fallback so the host still starts without setsid.
+  assert.match(script, /else nohup devbridge host -p 8081 -e 72/);
   assert.match(script, /devbridge delete-all/);
   assert.match(script, /pkill -f "devbridge host"/);
   assert.match(script, /sed -n 's\/\.\*Tunnel URL: \*\/\/p' \/tmp\/host\.log/);
@@ -250,6 +253,15 @@ test('919: buildDevbridgeExposeScript starts a session-surviving host on the cal
   assert.match(script, /DB_HTTP_CODE=/);
   // The tunnel lifetime (-e, hours) is echoed so the return value can carry it.
   assert.match(script, /DB_EXPIRY_HOURS=72/);
+});
+
+test('922 (S8): buildDevbridgeExposeScript falls back to bare nohup when setsid is missing', () => {
+  const script = buildDevbridgeExposeScript(8081);
+  // setsid fallback: the host must still start on images without setsid.
+  assert.match(script, /if command -v setsid > \/dev\/null 2>&1; then setsid nohup devbridge host -p 8081/);
+  assert.match(script, /else nohup devbridge host -p 8081/);
+  // disown is guarded: shells without the builtin must not abort the script.
+  assert.match(script, /disown 2>\/dev\/null \|\| true/);
 });
 
 test('919: buildDevbridgeExposeScript honors a custom expiry and exposes it via parse', () => {
@@ -281,9 +293,42 @@ test('919: buildDevbridgeVerifyScript issues a real GET from an independent sess
   const script = buildDevbridgeVerifyScript('https://c4rdv7bv-8081.devbridge-s2.hwtunnel.com');
   assert.match(
     script,
-    /curl -s -o \/dev\/null -w "%\{http_code\}" --max-time 10 "https:\/\/c4rdv7bv-8081\.devbridge-s2\.hwtunnel\.com"/,
+    /curl -s -o \/tmp\/devbridge_verify_body -w "%\{http_code\}" --max-time 10 "https:\/\/c4rdv7bv-8081\.devbridge-s2\.hwtunnel\.com"/,
   );
   assert.match(script, /DB_VERIFY_HTTP_CODE=\$VERIFY_CODE/);
+});
+
+test('922 (B1): parseDevbridgeVerifyOutput reads DB_VERIFY_HTTP_CODE (not the DB_HTTP_CODE anchor)', () => {
+  const stdout = 'DB_VERIFY_HTTP_CODE=200\nDB_VERIFY_NOT_FOUND=0';
+  const parsed = parseDevbridgeVerifyOutput(stdout);
+  assert.equal(parsed.httpCode, '200');
+  assert.equal(parsed.notFound, false);
+  // The anchored ^DB_HTTP_CODE= lookup in parseDevbridgeExposeOutput must NOT
+  // be what serves the verify result — it never matches DB_VERIFY_HTTP_CODE=.
+  assert.equal(parseDevbridgeExposeOutput(stdout).httpCode, '');
+  const failed = parseDevbridgeVerifyOutput('DB_VERIFY_HTTP_CODE=000\nDB_VERIFY_NOT_FOUND=0');
+  assert.equal(failed.httpCode, '000');
+  const empty = parseDevbridgeVerifyOutput('');
+  assert.equal(empty.httpCode, '');
+  assert.equal(empty.notFound, false);
+});
+
+test('922 (B2): parseDevbridgeVerifyOutput flags the native false-success "tunnel not found" body', () => {
+  const parsed = parseDevbridgeVerifyOutput('DB_VERIFY_HTTP_CODE=200\nDB_VERIFY_NOT_FOUND=1');
+  assert.equal(parsed.httpCode, '200');
+  assert.equal(parsed.notFound, true);
+  // Multiple body matches still count as not-found.
+  const multi = parseDevbridgeVerifyOutput('DB_VERIFY_HTTP_CODE=200\nDB_VERIFY_NOT_FOUND=3');
+  assert.equal(multi.notFound, true);
+});
+
+test('922 (B2): buildDevbridgeVerifyScript keeps the body and emits the not-found verdict', () => {
+  const script = buildDevbridgeVerifyScript('https://c4rdv7bv-8081.devbridge-s2.hwtunnel.com');
+  // The body must NOT be discarded with -o /dev/null — the native false-success
+  // form answers 200 with a "tunnel not found" body.
+  assert.doesNotMatch(script, /-o \/dev\/null/);
+  assert.match(script, /grep -ci 'tunnel not found' \/tmp\/devbridge_verify_body/);
+  assert.match(script, /DB_VERIFY_NOT_FOUND=\$VERIFY_NOT_FOUND/);
 });
 
 test('919: buildDevbridgeVerifyScript rejects URLs unsafe for shell interpolation', () => {

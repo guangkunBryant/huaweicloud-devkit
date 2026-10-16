@@ -350,8 +350,8 @@ sleep 2
 devbridge delete-all 2>/dev/null || true
 
 # 1. Start tunnel
-setsid nohup devbridge host -p <port> -e 72 > /tmp/host.log 2>&1 < /dev/null &
-disown
+if command -v setsid > /dev/null 2>&1; then setsid nohup devbridge host -p <port> -e 72 > /tmp/host.log 2>&1 < /dev/null & else nohup devbridge host -p <port> -e 72 > /tmp/host.log 2>&1 < /dev/null & fi
+disown 2>/dev/null || true
 sleep 10 && cat /tmp/host.log
 
 # 2. Extract tunnel URL and health-check before returning
@@ -363,8 +363,8 @@ else
   echo "WARN: Tunnel URL unreachable (HTTP $HTTP_CODE). Rebuilding tunnel..."
   pkill -f "devbridge host" && sleep 2
   devbridge delete-all 2>/dev/null || true
-  setsid nohup devbridge host -p <port> -e 72 > /tmp/host.log 2>&1 < /dev/null &
-  disown
+  if command -v setsid > /dev/null 2>&1; then setsid nohup devbridge host -p <port> -e 72 > /tmp/host.log 2>&1 < /dev/null & else nohup devbridge host -p <port> -e 72 > /tmp/host.log 2>&1 < /dev/null & fi
+  disown 2>/dev/null || true
   sleep 10
   TUNNEL_URL=$(grep -oP 'Tunnel URL: \K.*' /tmp/host.log)
   HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$TUNNEL_URL" 2>/dev/null || echo "000")
@@ -384,15 +384,15 @@ devbridge list
 # Step B: Remove all stale tunnels
 devbridge delete-all
 # Step C: Retry tunnel creation
-setsid nohup devbridge host -p <port> -e 72 > /tmp/host.log 2>&1 < /dev/null &
-disown
+if command -v setsid > /dev/null 2>&1; then setsid nohup devbridge host -p <port> -e 72 > /tmp/host.log 2>&1 < /dev/null & else nohup devbridge host -p <port> -e 72 > /tmp/host.log 2>&1 < /dev/null & fi
+disown 2>/dev/null || true
 sleep 10 && cat /tmp/host.log
 ```
 
 This eliminates the most common deployment failure — historical tunnels from previous sessions accumulating past the max=10 quota.
 
 - The public URL has the form `https://<id>-<port>.devbridge-s2.hwtunnel.com` (from the `Tunnel URL:` line; 8-char lowercase base32 id). The pre-migration bridge domain `cn-north-4-bridge.myhuaweicloud.com` is dead — treat any URL on it as broken and never hand one to the developer.
-- **Start the host so it survives the exec session**: `setsid nohup ... < /dev/null & disown` (all three: setsid detaches the process group, `< /dev/null` drops the controlling tty, disown removes it from the shell's job table). A bare `nohup ... &` is reaped when the one-shot session ends — the tunnel dies right after a green in-session health check (the "200 but tunnel not found" trap). `-e 72` sets the tunnel lifetime in **hours** — surface it to the developer with the URL ("链接有效期 72 小时").
+- **Start the host so it survives the exec session**: `setsid nohup ... < /dev/null & disown` (all three: setsid detaches the process group, `< /dev/null` drops the controlling tty, disown removes it from the shell's job table). On images without `setsid`, fall back to a bare `nohup ... &` launch (`if command -v setsid ...; else nohup ... ; fi`) and guard `disown` with `2>/dev/null || true` — a missing `setsid` must not leave the host unstarted. A bare `nohup ... &` (when `setsid` IS available) is reaped when the one-shot session ends — the tunnel dies right after a green in-session health check (the "200 but tunnel not found" trap). If the independent re-verify fails or answers 200 with a "tunnel not found" body, the URL is NOT persistent — always tell the developer 隧道将在会话结束后失效，请勿分享. `-e 72` sets the tunnel lifetime in **hours** — surface it to the developer with the URL ("链接有效期 72 小时").
 - **Return this URL to the developer as the deployment result link.** Keep the host process running (do not close the session before handing over the URL).
 - Tunnel `description` (`-d`) accepts only Chinese characters, letters, and digits (0-64). Symbols such as `-`/`_`/spaces are rejected (`Invalid tunnel description`).
 - Official docs: https://huaweicloud.github.io/devspace-devbridge/

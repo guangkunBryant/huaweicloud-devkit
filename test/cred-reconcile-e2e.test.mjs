@@ -637,3 +637,45 @@ test('24b persist still succeeds when the profile to reset does not exist (delet
     assert.equal(out.hcloud.ok, true, 'a missing profile on delete must not fail the persist');
   });
 });
+
+test('25 initial scenario: a preset profile with a stale/expired securityToken is reset by persist (#920)', async () => {
+  await withTempHome(async (dir) => {
+    const log = join(dir, 'hcloud.log');
+    setFakeHcloud(log);
+    const ak = 'E2E25_AK';
+    const sk = 'E2E25_SK';
+    const region = 'cn-north-4';
+    // Initial scenario: the preset profile already carries a stale/expired
+    // securityToken. `configure set` refuses empty values, so the token can
+    // never be overwritten in place — only the delete/recreate path removes it.
+    writeFakeKooCli('deploy', [
+      { name: 'deploy', accessKeyId: ak, secretAccessKey: sk, region, securityToken: 'E2E25_STALE_TOKEN' },
+    ]);
+
+    const out = await callTool('huaweicloud_auth_switch', { mode: 'memory', action: 'persist', ak, sk, region });
+    assert.equal(out.status, 'ok');
+    assert.equal(
+      out.hcloud.profileReset,
+      true,
+      'persist must walk the delete/recreate path when the preset profile carries a stale token',
+    );
+
+    const calls = readFileSync(log, 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    const deleteIdx = calls.findIndex((c) => c[0] === 'configure' && c[1] === 'delete');
+    const setIdx = calls.findIndex((c) => c[0] === 'configure' && c[1] === 'set');
+    assert.ok(deleteIdx !== -1, 'configure delete must run to drop the stale token');
+    assert.ok(setIdx !== -1, 'configure set must run after the delete (re-create)');
+    assert.ok(deleteIdx < setIdx, 'the delete must precede the re-create');
+    assert.ok(
+      calls[setIdx].every((a) => !String(a).startsWith('--cli-security-token=')),
+      'the re-create must not pass a security token (no new token at rest)',
+    );
+
+    // The recreated profile keeps the credential stores consistent.
+    const scan = scanState();
+    assert.equal(scan.inconsistencies.length, 0);
+  });
+});

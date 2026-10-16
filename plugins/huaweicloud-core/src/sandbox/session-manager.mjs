@@ -1271,8 +1271,13 @@ export function buildDevbridgeExposeScript(port, expiryHours = DEVBRIDGE_HOST_EX
     `pkill -f "devbridge host" 2>/dev/null || true`,
     `sleep 2`,
     `devbridge delete-all > /dev/null 2>&1 || true`,
-    `setsid nohup devbridge host -p ${port} -e ${expiryHours} > ${hostLog} 2>&1 < /dev/null &`,
-    `disown`,
+    // #922 (S8): setsid is unavailable on some sandbox images — fall back to a
+    // bare nohup launch so the host still starts; persistence is then judged by
+    // the independent re-verify below, which emits the 请勿分享 warning in the
+    // non-persistent case. disown is guarded: shells without the builtin must
+    // not abort the script.
+    `if command -v setsid > /dev/null 2>&1; then setsid nohup devbridge host -p ${port} -e ${expiryHours} > ${hostLog} 2>&1 < /dev/null & else nohup devbridge host -p ${port} -e ${expiryHours} > ${hostLog} 2>&1 < /dev/null & fi`,
+    `disown 2>/dev/null || true`,
     `sleep 12`,
     `TUNNEL_URL=$(sed -n 's/.*Tunnel URL: *//p' ${hostLog} | tail -1)`,
     `HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$TUNNEL_URL" 2>/dev/null || echo "000")`,
@@ -1288,8 +1293,11 @@ export function buildDevbridgeExposeScript(port, expiryHours = DEVBRIDGE_HOST_EX
 // Build the script for the SECOND, independent exec session that re-verifies the
 // tunnel with a real GET (#919): the in-session health check inside
 // buildDevbridgeExposeScript cannot prove the host survived session teardown —
-// a GET from a fresh session can. The URL is validated (https, URL-safe chars
-// only) before being spliced into the shell command.
+// a GET from a fresh session can. #922 (B2): the response body is kept and
+// checked for the native false-success form — a 200 whose body is "tunnel not
+// found" — and the verdict is emitted as DB_VERIFY_NOT_FOUND so
+// parseDevbridgeVerifyOutput can catch it. The URL is validated (https,
+// URL-safe chars only) before being spliced into the shell command.
 export function buildDevbridgeVerifyScript(tunnelUrl) {
   const url = String(tunnelUrl || '');
   if (!/^https:\/\/[A-Za-z0-9:._/-]+$/.test(url)) {
@@ -1297,9 +1305,14 @@ export function buildDevbridgeVerifyScript(tunnelUrl) {
       `sandbox expose tunnel: invalid tunnel URL ${JSON.stringify(url.slice(0, 80))}. Expected an https:// URL with URL-safe characters (from the expose script's DB_TUNNEL_URL output).`,
     );
   }
+  const bodyFile = '/tmp/devbridge_verify_body';
   return [
-    `VERIFY_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${url}" 2>/dev/null || echo "000")`,
+    `VERIFY_CODE=$(curl -s -o ${bodyFile} -w "%{http_code}" --max-time 10 "${url}" 2>/dev/null || echo "000")`,
+    `VERIFY_NOT_FOUND=$(grep -ci 'tunnel not found' ${bodyFile} 2>/dev/null || true)`,
+    `if [ -z "$VERIFY_NOT_FOUND" ]; then VERIFY_NOT_FOUND=0; fi`,
+    `rm -f ${bodyFile} 2>/dev/null || true`,
     `echo "DB_VERIFY_HTTP_CODE=$VERIFY_CODE"`,
+    `echo "DB_VERIFY_NOT_FOUND=$VERIFY_NOT_FOUND"`,
   ].join('\n');
 }
 
@@ -1316,6 +1329,23 @@ export function parseDevbridgeExposeOutput(stdout) {
   const tunnelId = (tunnelUrl.match(/^https:\/\/([A-Za-z0-9_-]+)-\d+\./) || [])[1] || '';
   const expiryHours = Number(getField('DB_EXPIRY_HOURS')) || undefined;
   return { tunnelUrl, httpCode, quotaError, tunnelId, expiryHours };
+}
+
+// Parse the raw stdout of buildDevbridgeVerifyScript into structured fields.
+// Dedicated parser (#922 B1): the verify script emits DB_VERIFY_HTTP_CODE /
+// DB_VERIFY_NOT_FOUND keys — the anchored ^DB_HTTP_CODE= lookup in
+// parseDevbridgeExposeOutput never matches them, which used to leave
+// verifyHttpCode empty and persistent always false.
+export function parseDevbridgeVerifyOutput(stdout) {
+  const text = String(stdout || '');
+  const getField = (key) => {
+    const m = text.match(new RegExp(`^${key}=(.*)$`, 'm'));
+    return m ? m[1].trim() : '';
+  };
+  const httpCode = getField('DB_VERIFY_HTTP_CODE');
+  const notFoundCount = Number(getField('DB_VERIFY_NOT_FOUND')) || 0;
+  const notFound = notFoundCount > 0;
+  return { httpCode, notFound };
 }
 
 // Parse and validate a TCP port number destined for shell interpolation. Returns
@@ -1408,6 +1438,7 @@ export async function exposeTunnel(workspaceId, { port }, username = 'root', tim
     // fresh-session GET fails, the URL will die with the deploying session —
     // say so explicitly instead of returning a link the visitor cannot open.
     let verifyHttpCode = '';
+    let verifyNotFound = false;
     let persistent = undefined;
     if (parsed.tunnelUrl) {
       try {
@@ -1417,15 +1448,29 @@ export async function exposeTunnel(workspaceId, { port }, username = 'root', tim
           username,
           30000,
         );
-        verifyHttpCode = parseDevbridgeExposeOutput(verifyResult.stdout).httpCode || '';
+        // #922 (B1): parse with the dedicated verify parser — the
+        // DB_VERIFY_HTTP_CODE key is not visible to parseDevbridgeExposeOutput.
+        const verify = parseDevbridgeVerifyOutput(verifyResult.stdout);
+        verifyHttpCode = verify.httpCode || '';
+        // #922 (B2): a native false-success form answers HTTP 200 with a
+        // "tunnel not found" body — treat it as non-persistent.
+        verifyNotFound = verify.notFound;
       } catch {}
       // 000 = the fresh session could not reach the tunnel (host already dead
-      // or gateway not serving); anything non-200/304 is surfaced as-is below.
-      persistent = verifyHttpCode !== '' && verifyHttpCode !== '000';
+      // or gateway not serving); 200 with a "tunnel not found" body = the
+      // gateway answered but the tunnel is gone; anything non-200/304 is
+      // surfaced as-is below.
+      persistent = verifyHttpCode !== '' && verifyHttpCode !== '000' && !verifyNotFound;
       if (!persistent) {
-        warnings.push(
-          '隧道将在会话结束后失效，请勿分享 (the tunnel did NOT survive an independent exec-session recheck — do NOT share this URL; the host process is not persistent).',
-        );
+        if (verifyNotFound) {
+          warnings.push(
+            '复测返回 HTTP 200 但 body 为 "tunnel not found"（原生假成功形态），隧道实际未生效，请勿分享 (the recheck answered HTTP 200 with a "tunnel not found" body — the tunnel is NOT serving; do NOT share this URL).',
+          );
+        } else {
+          warnings.push(
+            '隧道将在会话结束后失效，请勿分享 (the tunnel did NOT survive an independent exec-session recheck — do NOT share this URL; the host process is not persistent).',
+          );
+        }
       }
     }
 
@@ -1446,6 +1491,7 @@ export async function exposeTunnel(workspaceId, { port }, username = 'root', tim
       authMode,
       httpCode: parsed.httpCode,
       verifyHttpCode: verifyHttpCode || undefined,
+      verifyNotFound: verifyNotFound || undefined,
       persistent,
       expiresAt,
       expiresInHours: parsed.expiryHours,
