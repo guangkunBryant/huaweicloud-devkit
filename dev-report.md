@@ -128,4 +128,4 @@ E2E MCP stdio JSON-RPC 实测：`huaweicloud_explain_error` 仅传 `errorCode`�
 
 **Commit**
 
-`<commit-hash>`（待提交后回填）— `fix: explainError 从 errorCode 点码前缀推导 service（#935 E2E-B1 errorCode-only 路由缺口）`，已推送至 `origin issue/935-1024-batch2`。
+`ec20ae3` — `fix: explainError 从 errorCode 点码前缀推导 service（#935 E2E-B1 errorCode-only 路由缺口）`，已推送至 `origin issue/935-1024-batch2`（本节由后续 docs commit 回填 hash）。
