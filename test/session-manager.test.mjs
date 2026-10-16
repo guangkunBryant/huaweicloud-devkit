@@ -18,6 +18,8 @@ import {
   parseDevbridgeAuthOutput,
   buildDevbridgeExposeScript,
   parseDevbridgeExposeOutput,
+  buildDevbridgeVerifyScript,
+  DEVBRIDGE_HOST_EXPIRY_HOURS,
   validateTunnelPort,
 } from '../plugins/huaweicloud-core/src/sandbox/session-manager.mjs';
 
@@ -233,14 +235,65 @@ test('D: parseDevbridgeAuthOutput extracts the final auth mode and per-tier atte
   assert.deepEqual(empty.attempts, {});
 });
 
-test('D: buildDevbridgeExposeScript binds the host to the caller-provided port', () => {
+test('919: buildDevbridgeExposeScript starts a session-surviving host on the caller-provided port', () => {
   const script = buildDevbridgeExposeScript(8081);
-  assert.match(script, /devbridge host -p 8081 -e 8/);
+  // setsid + nohup + stdin detach + disown: without all three the host is reaped
+  // when the one-shot exec session ends and the tunnel dies after a green
+  // in-session check (#919 "假成功").
+  assert.match(script, /setsid nohup devbridge host -p 8081 -e 72/);
+  assert.match(script, /< \/dev\/null/);
+  assert.match(script, /&\ndisown/);
   assert.match(script, /devbridge delete-all/);
   assert.match(script, /pkill -f "devbridge host"/);
   assert.match(script, /sed -n 's\/\.\*Tunnel URL: \*\/\/p' \/tmp\/host\.log/);
   assert.match(script, /DB_TUNNEL_URL=/);
   assert.match(script, /DB_HTTP_CODE=/);
+  // The tunnel lifetime (-e, hours) is echoed so the return value can carry it.
+  assert.match(script, /DB_EXPIRY_HOURS=72/);
+});
+
+test('919: buildDevbridgeExposeScript honors a custom expiry and exposes it via parse', () => {
+  const script = buildDevbridgeExposeScript(80, 24);
+  assert.match(script, /devbridge host -p 80 -e 24/);
+  assert.match(script, /DB_EXPIRY_HOURS=24/);
+  const parsed = parseDevbridgeExposeOutput(
+    'DB_TUNNEL_URL=https://ab12cd34-80.devbridge-s2.hwtunnel.com\nDB_EXPIRY_HOURS=24',
+  );
+  assert.equal(parsed.expiryHours, 24);
+});
+
+test('919: parseDevbridgeExposeOutput extracts expiry hours alongside tunnel fields', () => {
+  const stdout = [
+    'DB_HOST_LOG=',
+    'Tunnel URL: https://c4rdv7bv-8081.devbridge-s2.hwtunnel.com',
+    'DB_TUNNEL_URL=https://c4rdv7bv-8081.devbridge-s2.hwtunnel.com',
+    'DB_HTTP_CODE=200',
+    'DB_EXPIRY_HOURS=72',
+    'DB_QUOTA_ERROR=0',
+  ].join('\n');
+  const parsed = parseDevbridgeExposeOutput(stdout);
+  assert.equal(parsed.expiryHours, 72);
+  const noExpiry = parseDevbridgeExposeOutput('DB_TUNNEL_URL=\nDB_HTTP_CODE=200');
+  assert.equal(noExpiry.expiryHours, undefined);
+});
+
+test('919: buildDevbridgeVerifyScript issues a real GET from an independent session', () => {
+  const script = buildDevbridgeVerifyScript('https://c4rdv7bv-8081.devbridge-s2.hwtunnel.com');
+  assert.match(
+    script,
+    /curl -s -o \/dev\/null -w "%\{http_code\}" --max-time 10 "https:\/\/c4rdv7bv-8081\.devbridge-s2\.hwtunnel\.com"/,
+  );
+  assert.match(script, /DB_VERIFY_HTTP_CODE=\$VERIFY_CODE/);
+});
+
+test('919: buildDevbridgeVerifyScript rejects URLs unsafe for shell interpolation', () => {
+  for (const bad of ['', 'http://x.example.com', 'https://a.example.com/x;rm -rf /', 'https://a"b.com']) {
+    assert.throws(
+      () => buildDevbridgeVerifyScript(bad),
+      /invalid tunnel URL/,
+      `expected rejection for ${JSON.stringify(bad)}`,
+    );
+  }
 });
 
 test('D: parseDevbridgeExposeOutput extracts tunnel URL, id, HTTP code, and quota flag', () => {
@@ -273,14 +326,20 @@ test('D: parseDevbridgeExposeOutput tolerates empty host log (no tunnel yet)', (
   assert.equal(parsed.tunnelId, '');
 });
 
-test('P1: validateTunnelPort accepts integer ports in range', () => {
+test('919: DEVBRIDGE_HOST_EXPIRY_HOURS pins the tunnel lifetime used by the expose script', () => {
+  assert.equal(DEVBRIDGE_HOST_EXPIRY_HOURS, 72);
+  const script = buildDevbridgeExposeScript(80);
+  assert.ok(script.includes(`-e ${DEVBRIDGE_HOST_EXPIRY_HOURS}`));
+});
+
+test('919: validateTunnelPort accepts integer ports in range', () => {
   assert.equal(validateTunnelPort(8080), 8080);
   assert.equal(validateTunnelPort('8081'), 8081);
   assert.equal(validateTunnelPort(1), 1);
   assert.equal(validateTunnelPort(65535), 65535);
 });
 
-test('P1: validateTunnelPort rejects strings, decimals, and out-of-range ports (shell-injection guard)', () => {
+test('919: validateTunnelPort rejects strings, decimals, and out-of-range ports (shell-injection guard)', () => {
   for (const bad of ['80;rm -rf /', 'abc', '', null, undefined, 0, -1, 65536, 1.5, '8080;true']) {
     assert.throws(() => validateTunnelPort(bad), /invalid port/, `expected rejection for ${JSON.stringify(bad)}`);
   }

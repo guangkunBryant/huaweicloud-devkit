@@ -1251,17 +1251,28 @@ export function parseDevbridgeAuthOutput(stdout) {
   return { authMode, attempts };
 }
 
+// Tunnel lifetime for expose-created hosts, in hours. The report that motivated
+// #919 uses -e 72 so the shared link survives long after the deploying session
+// ends; the value is surfaced to callers via exposeTunnel's expiresAt field.
+export const DEVBRIDGE_HOST_EXPIRY_HOURS = 72;
+
 // Start (or replace) a devbridge host bound to a single port, extract the public
 // URL, and health-check it. Mirrors the huaweicloud-sandbox skill's Expose flow:
 // pre-clean stale tunnels (quota 10006), start host in background, read
 // "Tunnel URL: ..." from /tmp/host.log, curl-check, retry once on unreachable.
-export function buildDevbridgeExposeScript(port) {
+// The host MUST survive the exec session that started it (#919): setsid detaches
+// it from the session's process group, `< /dev/null` drops the controlling tty
+// stdin, and `disown` removes it from the shell's job table — without all three
+// the host is reaped when the one-shot session ends and the tunnel dies
+// immediately after a green in-session health check (the "假成功" bug).
+export function buildDevbridgeExposeScript(port, expiryHours = DEVBRIDGE_HOST_EXPIRY_HOURS) {
   const hostLog = '/tmp/host.log';
   return [
     `pkill -f "devbridge host" 2>/dev/null || true`,
     `sleep 2`,
     `devbridge delete-all > /dev/null 2>&1 || true`,
-    `nohup devbridge host -p ${port} -e 8 > ${hostLog} 2>&1 &`,
+    `setsid nohup devbridge host -p ${port} -e ${expiryHours} > ${hostLog} 2>&1 < /dev/null &`,
+    `disown`,
     `sleep 12`,
     `TUNNEL_URL=$(sed -n 's/.*Tunnel URL: *//p' ${hostLog} | tail -1)`,
     `HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$TUNNEL_URL" 2>/dev/null || echo "000")`,
@@ -1269,7 +1280,26 @@ export function buildDevbridgeExposeScript(port) {
     `tail -n 5 ${hostLog}`,
     `echo "DB_TUNNEL_URL=$TUNNEL_URL"`,
     `echo "DB_HTTP_CODE=$HTTP_CODE"`,
+    `echo "DB_EXPIRY_HOURS=${expiryHours}"`,
     `echo "DB_QUOTA_ERROR=$(grep -c '10006' ${hostLog} 2>/dev/null || echo 0)"`,
+  ].join('\n');
+}
+
+// Build the script for the SECOND, independent exec session that re-verifies the
+// tunnel with a real GET (#919): the in-session health check inside
+// buildDevbridgeExposeScript cannot prove the host survived session teardown —
+// a GET from a fresh session can. The URL is validated (https, URL-safe chars
+// only) before being spliced into the shell command.
+export function buildDevbridgeVerifyScript(tunnelUrl) {
+  const url = String(tunnelUrl || '');
+  if (!/^https:\/\/[A-Za-z0-9:._/-]+$/.test(url)) {
+    throw new Error(
+      `sandbox expose tunnel: invalid tunnel URL ${JSON.stringify(url.slice(0, 80))}. Expected an https:// URL with URL-safe characters (from the expose script's DB_TUNNEL_URL output).`,
+    );
+  }
+  return [
+    `VERIFY_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${url}" 2>/dev/null || echo "000")`,
+    `echo "DB_VERIFY_HTTP_CODE=$VERIFY_CODE"`,
   ].join('\n');
 }
 
@@ -1284,7 +1314,8 @@ export function parseDevbridgeExposeOutput(stdout) {
   const httpCode = getField('DB_HTTP_CODE');
   const quotaError = getField('DB_QUOTA_ERROR') === '1' || /10006/.test(text);
   const tunnelId = (tunnelUrl.match(/^https:\/\/([A-Za-z0-9_-]+)-\d+\./) || [])[1] || '';
-  return { tunnelUrl, httpCode, quotaError, tunnelId };
+  const expiryHours = Number(getField('DB_EXPIRY_HOURS')) || undefined;
+  return { tunnelUrl, httpCode, quotaError, tunnelId, expiryHours };
 }
 
 // Parse and validate a TCP port number destined for shell interpolation. Returns
@@ -1303,7 +1334,10 @@ export function validateTunnelPort(port) {
 // Expose a sandbox port to a public DevBridge tunnel URL. `port` MUST be the
 // ACTUAL port reported by deployNginx (deploy_nginx auto-increments on conflict),
 // otherwise the tunnel is bound to a dead port. Returns ok, publicUrl, port,
-// tunnelId, auth mode, and warnings.
+// tunnelId, auth mode, expiresAt (tunnel lifetime from -e), and warnings; the
+// tunnel is re-verified from a second independent exec session (#919) and the
+// result carries verifyHttpCode + persistent so callers can tell a
+// session-surviving URL from one that dies with the deploying session.
 export async function exposeTunnel(workspaceId, { port }, username = 'root', timeoutMs = 90000) {
   if (!workspaceId) {
     throw new Error('sandbox expose tunnel: workspace_id is required.');
@@ -1367,11 +1401,43 @@ export async function exposeTunnel(workspaceId, { port }, username = 'root', tim
     const warnings = [];
     if (parsed.quotaError)
       warnings.push('DevBridge tunnel quota (10006) hit — stale tunnels were cleaned up and the host was retried.');
+
+    // #919: re-verify with a real GET from a SECOND, independent exec session.
+    // The in-session health check above cannot prove the host survived session
+    // teardown (setsid/nohup/disown make that likely, not certain). When the
+    // fresh-session GET fails, the URL will die with the deploying session —
+    // say so explicitly instead of returning a link the visitor cannot open.
+    let verifyHttpCode = '';
+    let persistent = undefined;
+    if (parsed.tunnelUrl) {
+      try {
+        const verifyResult = await execOneShot(
+          workspaceId,
+          buildDevbridgeVerifyScript(parsed.tunnelUrl),
+          username,
+          30000,
+        );
+        verifyHttpCode = parseDevbridgeExposeOutput(verifyResult.stdout).httpCode || '';
+      } catch {}
+      // 000 = the fresh session could not reach the tunnel (host already dead
+      // or gateway not serving); anything non-200/304 is surfaced as-is below.
+      persistent = verifyHttpCode !== '' && verifyHttpCode !== '000';
+      if (!persistent) {
+        warnings.push(
+          '隧道将在会话结束后失效，请勿分享 (the tunnel did NOT survive an independent exec-session recheck — do NOT share this URL; the host process is not persistent).',
+        );
+      }
+    }
+
     if (parsed.httpCode !== '200' && parsed.httpCode !== '304') {
       warnings.push(
         `Tunnel reachable check returned HTTP ${parsed.httpCode} (expected 200/304). The URL may not be serving yet.`,
       );
     }
+    const expiresAt =
+      parsed.expiryHours !== undefined
+        ? new Date(Date.now() + parsed.expiryHours * 3_600_000).toISOString()
+        : undefined;
     return {
       ok: true,
       publicUrl: parsed.tunnelUrl || undefined,
@@ -1379,6 +1445,10 @@ export async function exposeTunnel(workspaceId, { port }, username = 'root', tim
       tunnelId: parsed.tunnelId || undefined,
       authMode,
       httpCode: parsed.httpCode,
+      verifyHttpCode: verifyHttpCode || undefined,
+      persistent,
+      expiresAt,
+      expiresInHours: parsed.expiryHours,
       warnings: warnings.length > 0 ? warnings.join(' ') : undefined,
       hostLog: String(result.stdout || '').slice(0, 400),
     };
