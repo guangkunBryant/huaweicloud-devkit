@@ -82,22 +82,22 @@ KooCLI has no `ImportKeypair` operation, and `NovaCreateKeypair`'s returned `pri
 1. Generate a keypair locally (per-shell forms and the PowerShell quote trap: `references/create-instance.md` §5)
 2. Inject the PUBLIC key at creation via `--server.user_data` (base64 cloud-init):
 
-```bash
-# user_data (must be base64-encoded when passed to CreateServers)
-#cloud-config
-ssh_authorized_keys:
-  - <content of the local .pub file>
-```
+   ```bash
+   # user_data (must be base64-encoded when passed to CreateServers)
+   #cloud-config
+   ssh_authorized_keys:
+     - <content of the local .pub file>
+   ```
 
-```bash
-user_data=$(base64 -w0 << 'EOF'
-#cloud-config
-ssh_authorized_keys:
-  - <pub key content>
-EOF
-)
-hcloud ECS CreateServers ... --server.user_data=$user_data
-```
+   ```bash
+   user_data=$(base64 -w0 << 'EOF'
+   #cloud-config
+   ssh_authorized_keys:
+     - <pub key content>
+   EOF
+   )
+   hcloud ECS CreateServers ... --server.user_data=$user_data
+   ```
 
 3. After ACTIVE, SSH in with the matching private key (`ssh -i <key> root@<eip>`).
 

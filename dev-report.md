@@ -9,6 +9,7 @@ Scope: code + skills changes only inside this repo; no PR created, no issue edit
 ## Issue #919 — Sandbox expose persistence & tunnel durability
 
 **Changed files**
+
 - `plugins/huaweicloud-core/src/sandbox/session-manager.mjs`
   - `buildDevbridgeExposeScript` now backgrounds `devbridge host` with
     `setsid nohup devbridge host -p <port> -e 72 ... < /dev/null & disown`
@@ -34,6 +35,7 @@ Scope: code + skills changes only inside this repo; no PR created, no issue edit
 ## Issue #920 — Credential sync honesty (`auth init`)
 
 **Changed files**
+
 - `plugins/huaweicloud-core/src/auth/reconcile.mjs` — new
   `runHcloudProfileDelete(profile)` (wraps `hcloud configure delete`).
 - `plugins/huaweicloud-core/src/tools.mjs` — `persistCredentials` walks the
@@ -53,6 +55,7 @@ Scope: code + skills changes only inside this repo; no PR created, no issue edit
 ## Issue #921 — `ok`-verdict hardening & KooCLI pairing
 
 **Changed files**
+
 - `plugins/huaweicloud-core/src/hcloud-cli.mjs` — verdict is now
   `code === 0 || (isObsCommand && successText && !errorIndicators)`:
   - exit 0 + KooCLI parameter-error text → `ok:false` with `errorCode: 'PARAM_ERROR'`
@@ -77,6 +80,7 @@ Scope: code + skills changes only inside this repo; no PR created, no issue edit
 ## Issue #922 — Pre-emptive balance gate & Windows SSH
 
 **Changed files**
+
 - `plugins/huaweicloud-core/src/tools.mjs` — new `Ecs.0707` risk rule with
   `Ecs` service alias; the balance gate is now **pre-emptive interception**
   (STOP when estimate > balance, including zero balance) instead of
@@ -91,9 +95,9 @@ Scope: code + skills changes only inside this repo; no PR created, no issue edit
   - `ssh-keygen -N ''` fails in PowerShell ("option requires an argument -- N");
   - `-N '""'` sets a literal `""` passphrase (the trap);
   - `ssh-keygen --% ... -N ""` works (no passphrase).
-  Plus: sshd-ready `Connection refused` retry, paramiko password automation
-  (no `sshpass` on Windows), `scp` key upload, cloud-init `ssh_authorized_keys`
-  injection (KooCLI has no `ImportKeypair`).
+    Plus: sshd-ready `Connection refused` retry, paramiko password automation
+    (no `sshpass` on Windows), `scp` key upload, cloud-init `ssh_authorized_keys`
+    injection (KooCLI has no `ImportKeypair`).
 - `plugins/huaweicloud-core/skills/huawei-ecs/SKILL.md` — routing section to the
   new reference + References list entry; trap summary (passphrase literal `""`).
 - `plugins/huaweicloud-core/skills/huawei-ecs/references/create-instance.md` —
@@ -106,6 +110,7 @@ Scope: code + skills changes only inside this repo; no PR created, no issue edit
 ## Regression guard
 
 `test/structure.test.mjs` — 4 new guards:
+
 - huawei-iac stage-5 gate must match 前置拦截 + 续跑原配置 + `Ecs.7000` +
   `balanceRecharge`;
 - huawei-ecs must route to `references/windows-ssh.md`, which must exist and
@@ -118,16 +123,17 @@ Scope: code + skills changes only inside this repo; no PR created, no issue edit
 
 ## Test evidence
 
-| Gate | Result |
-| --- | --- |
-| `prettier --write .` | clean (0 remaining format diffs) |
-| ESLint | 0 errors (2 pre-existing `import/no-cycle` warnings) |
-| markdownlint-cli2 | clean |
-| `node --test` (full suite) | **727 tests, 639 pass, 74 fail** |
-| Failure set vs baseline | **identical** (74 pre-existing env-related failures on this Windows box; baseline was 711/623/74 → +16 new tests, all passing) |
-| `node scripts/validate-package.mjs` | "Validated HuaweiCloud DevKit with 29 skills. / Validated KooCLI version pairing: 7.3.12." |
+| Gate                                | Result                                                                                                                         |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `prettier --write .`                | clean (0 remaining format diffs)                                                                                               |
+| ESLint                              | 0 errors (2 pre-existing `import/no-cycle` warnings)                                                                           |
+| markdownlint-cli2                   | clean                                                                                                                          |
+| `node --test` (full suite)          | **727 tests, 639 pass, 74 fail**                                                                                               |
+| Failure set vs baseline             | **identical** (74 pre-existing env-related failures on this Windows box; baseline was 711/623/74 → +16 new tests, all passing) |
+| `node scripts/validate-package.mjs` | "Validated HuaweiCloud DevKit with 29 skills. / Validated KooCLI version pairing: 7.3.12."                                     |
 
 Per-file reruns during development:
+
 - `test/session-manager.test.mjs` 35/35
 - `test/cred-reconcile-e2e.test.mjs` 28/28
 - `test/hcloud-cli.test.mjs` 54/54
