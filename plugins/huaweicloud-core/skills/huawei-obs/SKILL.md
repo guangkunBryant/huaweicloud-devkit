@@ -73,7 +73,7 @@ hcloud OBS config -e=<endpoint> -i=<AK> -k=<SK> -t=token
 | Set object ACL               | `hcloud OBS chattri obs://<bucket>/<key> -acl=public-read`                | Bucket ACL does NOT cascade — anonymous reads need both |
 | Set lifecycle                | `hcloud OBS lifecycle obs://<bucket> -method=put -localfile=<json>`       |
 | Set bucket policy            | `hcloud OBS bucketpolicy obs://<bucket> -method=put -localfile=<json>`    |
-| Set CORS                     | Not available via `hcloud OBS` — use API/SDK (`SetBucketCors`) or console |
+| Set CORS                     | `huaweicloud_obs_set_cors` (set/get/delete) — KooCLI OBS has no cors subcommand; the tool does AWS4-signed `PUT /?cors` internally. allowedMethod MUST include HEAD |
 | Delete bucket                | `hcloud OBS rm obs://<bucket> -r` (must be empty)                         |
 | Presigned URL                | `hcloud OBS sign obs://<bucket>/<key> -e=<seconds>`                       |
 | Object metadata              | `hcloud OBS stat obs://<bucket>/<key>`                                    |

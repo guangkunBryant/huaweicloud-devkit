@@ -1420,10 +1420,9 @@ export function parseDevbridgeAuthOutput(stdout) {
   return { authMode, attempts, version };
 }
 
-// #998: 0.1.x binaries cannot serve tunnels — their hardcoded gateway
-// (cn-north-4-bridge.myhuaweicloud.com) was migrated and now serves a
-// 「服务已迁移」 placeholder — while their AK/SK auth tier still logs in
-// successfully. Without a version check the auth green-light leads to an
+// #998: 0.1.x binaries cannot serve tunnels — their hardcoded pre-migration
+// gateway was retired (Sep 2026) and now serves a「服务已迁移」placeholder,
+// while their AK/SK auth tier still logs in successfully. Without a version check the auth green-light leads to an
 // expose that fails after retries with no version context, sending the caller
 // chasing credentials/network/port instead of the real cause. Block 0.1.x
 // BEFORE exposing and point at the Step 0 install path. An empty version
