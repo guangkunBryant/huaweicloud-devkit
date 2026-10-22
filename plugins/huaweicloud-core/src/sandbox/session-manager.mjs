@@ -1995,7 +1995,9 @@ export async function exposeTunnel(
       } catch {}
       const noUrlCheck = evaluateDevbridgeVersion(noUrlVersion);
       if (noUrlCheck.blocked) {
-        warnings.push(`devbridge version is ${noUrlVersion} — too old to serve tunnels; upgrade per Step 0 before retrying.`);
+        warnings.push(
+          `devbridge version is ${noUrlVersion} — too old to serve tunnels; upgrade per Step 0 before retrying.`,
+        );
       }
       return {
         ok: false,

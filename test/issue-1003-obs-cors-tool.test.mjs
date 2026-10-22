@@ -3,10 +3,7 @@ import test from 'node:test';
 
 import { TOOL_DEFINITIONS, callTool } from '../plugins/huaweicloud-core/src/tools.mjs';
 import { clearProxyDispatcherCache } from '../plugins/huaweicloud-core/src/proxy/proxy-agent.mjs';
-import {
-  setRuntimeCredentials,
-  clearRuntimeCredentials,
-} from '../plugins/huaweicloud-core/src/auth/credentials.mjs';
+import { setRuntimeCredentials, clearRuntimeCredentials } from '../plugins/huaweicloud-core/src/auth/credentials.mjs';
 
 // ---- #1003: huaweicloud_obs_set_cors tool (same-structure obsSignedRequest reuse) ----
 

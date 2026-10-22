@@ -126,14 +126,11 @@ test('createConnection fails fast on fatal (non-transient) errors (#997)', async
       return polledConnectionResponse;
     },
     async () => {
-      await assert.rejects(
-        createConnection('env1', 'ak', 'sk', undefined, { backoffMs: [1, 1, 1] }),
-        (err) => {
-          assert.equal(postCalls, 1, 'fatal errors must not be retried');
-          assert.match(err.message, /Failed to create connection/);
-          return true;
-        },
-      );
+      await assert.rejects(createConnection('env1', 'ak', 'sk', undefined, { backoffMs: [1, 1, 1] }), (err) => {
+        assert.equal(postCalls, 1, 'fatal errors must not be retried');
+        assert.match(err.message, /Failed to create connection/);
+        return true;
+      });
     },
   );
 });
